@@ -37,6 +37,7 @@ continue de les livrer, comme l'exige l'AGPL.
 | Modifier le texte | Mode **Texte** : survoler une ligne, cliquer, retaper, Entrée. La ligne d'origine est effacée (redaction sans fond) et réécrite avec la police d'origine si elle est embarquée avec les glyphes nécessaires, sinon Helvetica / Times / Courier (gras, italique respectés). Vider la ligne la supprime. |
 | Ajouter du texte | Mode **Ajouter texte** : cliquer, taper, Entrée. Taille, couleur, police dans le panneau. |
 | Signer | Mode **Signer** : dessiner (souris, stylet, doigt), importer une image (fond blanc rendu transparent), ou taper son nom en écriture cursive. Poser, déplacer, redimensionner, valider. Les signatures sont mémorisées dans le navigateur. |
+| Zoom | Barre sous la fenêtre : `−`, le niveau courant (menu déroulant), `+`. Le menu offre **Ajuster à la page**, **Ajuster à la largeur**, **Taille réelle** et sept niveaux de 25 à 400 %. Ctrl+molette ou pincement sur pavé tactile zoome à l'endroit du curseur ; en mode Sélection, on déplace la page en la tirant à la souris (ou au bouton du milieu dans tous les modes). L'ajustement est un **mode** : tant qu'il est actif, redimensionner la fenêtre recalcule l'échelle. |
 | Pages | Colonne de gauche : clic / Ctrl / Maj pour sélectionner, **Supprimer**, tourner, **Extraire** (nouveau PDF), glisser pour réordonner. |
 | Fusionner | Bouton **Fusionner** ou déposer des fichiers sur la fenêtre. PDF et images (PNG, JPG…). Inséré après la page sélectionnée s'il y en a une, sinon à la fin. |
 | Annuler | Ctrl+Z, 30 niveaux, toutes opérations comprises (compression incluse). |
@@ -44,8 +45,12 @@ continue de les livrer, comme l'exige l'AGPL.
 | Enregistrer | Boîte « Enregistrer sous » du système (application bureau) ou téléchargement de `<nom>-modifie.pdf` (navigateur). Le fichier d'origine n'est jamais touché. |
 
 Raccourcis : V / T / A / S changent de mode, Suppr efface les pages
-sélectionnées, +/− zoom (Ctrl+molette aussi), flèches pour changer de page,
-Ctrl+S enregistre, Ctrl+P imprime, Ctrl+O ouvre.
+sélectionnées, flèches pour changer de page, Ctrl+S enregistre, Ctrl+P imprime,
+Ctrl+O ouvre.
+
+Zoom : Ctrl + et Ctrl − parcourent les niveaux, Ctrl 0 ajuste à la page,
+Ctrl 1 revient à la taille réelle, Ctrl 2 ajuste à la largeur ; `+` et `−` seuls
+font la même chose hors champ de saisie.
 
 ## Limites connues
 
@@ -60,6 +65,9 @@ Ctrl+S enregistre, Ctrl+P imprime, Ctrl+O ouvre.
 - L'application bureau a besoin du moteur WebView2, fourni d'origine avec
   Windows 11 et installable gratuitement sur Windows 10. À défaut, la variante
   navigateur fonctionne partout.
+- Le rendu envoyé par le serveur est plafonné à 3 600 pixels de côté : au-delà
+  de 400 % sur une page déjà grande, l'image s'adoucit légèrement plutôt que de
+  faire attendre plusieurs secondes.
 
 ## Fichiers
 

@@ -41,7 +41,12 @@ input,select{font:inherit}
 .lien-source:hover{color:#fff}
 .modes{display:flex;background:var(--chrome2);border-radius:9px;padding:3px;gap:2px}
 .modes .btn{padding:6px 10px}
-#poussoir{flex:1}
+#poussoir{flex:1;min-width:4px}
+/* Fenêtre étroite : on garde les icônes et on retire les mots, plutôt que de
+   laisser les derniers boutons (dont Enregistrer) sortir de l'écran. */
+@media (max-width:1210px){ #entete .lbl{display:none} #entete .btn{padding:7px 9px} }
+@media (max-width:1040px){ #taille{display:none} }
+@media (max-width:940px){ #nom{max-width:16vw} .modes .btn{padding:6px 8px} }
 #occupe{width:18px;height:18px;border:2.5px solid #555;border-top-color:var(--accent2);border-radius:50%;visibility:hidden}
 #occupe.on{visibility:visible;animation:tour .8s linear infinite}
 @keyframes tour{to{transform:rotate(360deg)}}
@@ -70,6 +75,17 @@ input,select{font:inherit}
 #barre-vue button{padding:4px 8px;border-radius:6px}
 #barre-vue button:hover:not(:disabled){background:#dedfe4}
 #barre-vue input{width:46px;text-align:center;border:1px solid var(--bord);border-radius:5px;padding:3px}
+#z-groupe{position:relative;display:inline-flex}
+#z-menu{display:inline-flex;align-items:center;gap:5px;padding:4px 9px;border-radius:6px;min-width:76px;justify-content:center;color:#444}
+#z-menu:hover{background:#dedfe4}
+#z-menu .fleche{font-size:9px;color:#8a8a92}
+#menu-zoom{position:absolute;top:calc(100% + 7px);left:50%;transform:translateX(-50%);background:#fff;border:1px solid var(--bord);border-radius:10px;box-shadow:var(--ombre);padding:5px;z-index:30;min-width:230px}
+#menu-zoom button{display:flex;align-items:center;justify-content:space-between;gap:18px;width:100%;padding:7px 10px;border-radius:6px;font-size:13px;color:#222}
+#menu-zoom button:hover{background:#f0f0f3}
+#menu-zoom button.actif{color:var(--accent);font-weight:600}
+#menu-zoom hr{border:0;border-top:1px solid var(--bord);margin:5px 2px}
+#menu-zoom kbd{background:#f0f0f3;border:1px solid #dcdce2;color:#777}
+#feuille.mode-select #calque{cursor:grab}
 #zone-vue{flex:1;overflow:auto;position:relative}
 #feuille{position:relative;margin:24px auto;background:#fff;box-shadow:var(--ombre);width:0;height:0}
 #feuille img{display:block;width:100%;height:100%;user-select:none;-webkit-user-drag:none}
@@ -156,21 +172,21 @@ kbd{background:#eee;border:1px solid #ccc;border-radius:4px;padding:0 5px;font-s
   <span id="taille"></span>
   <span class="sep"></span>
   <div class="modes" id="modes">
-    <button class="btn actif" data-mode="select" title="Naviguer (V)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 3l14 8-6 2-3 6z"/></svg>Sélection</button>
-    <button class="btn" data-mode="texte" title="Modifier le texte existant (T)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6V4h16v2M12 4v16M9 20h6"/></svg>Texte</button>
-    <button class="btn" data-mode="libre" title="Ajouter du texte (A)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>Ajouter texte</button>
-    <button class="btn" data-mode="signature" title="Signer (S)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17c3-6 5-8 6-6s-1 7 1 7 3-6 5-6 1 5 3 5 2-2 3-3"/><path d="M3 21h18"/></svg>Signer</button>
+    <button class="btn actif" data-mode="select" title="Naviguer (V)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 3l14 8-6 2-3 6z"/></svg><span class="lbl">Sélection</span></button>
+    <button class="btn" data-mode="texte" title="Modifier le texte existant (T)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6V4h16v2M12 4v16M9 20h6"/></svg><span class="lbl">Texte</span></button>
+    <button class="btn" data-mode="libre" title="Ajouter du texte (A)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg><span class="lbl">Ajouter texte</span></button>
+    <button class="btn" data-mode="signature" title="Signer (S)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17c3-6 5-8 6-6s-1 7 1 7 3-6 5-6 1 5 3 5 2-2 3-3"/><path d="M3 21h18"/></svg><span class="lbl">Signer</span></button>
   </div>
   <span class="sep"></span>
-  <button class="btn" id="b-fusion" title="Ajouter des PDF ou des images à ce document"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h9l3 3v13H4z"/><path d="M13 4v3h3M8 13h6M11 10v6"/></svg>Fusionner</button>
-  <button class="btn" id="b-comp" title="Réduire le poids du fichier"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5M9 9l6 6M15 9l-6 6"/></svg>Compresser</button>
+  <button class="btn" id="b-fusion" title="Ajouter des PDF ou des images à ce document"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h9l3 3v13H4z"/><path d="M13 4v3h3M8 13h6M11 10v6"/></svg><span class="lbl">Fusionner</span></button>
+  <button class="btn" id="b-comp" title="Réduire le poids du fichier"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5M9 9l6 6M15 9l-6 6"/></svg><span class="lbl">Compresser</span></button>
   <span id="poussoir"></span>
   <div id="occupe"></div>
-  <button class="btn" id="b-annuler" disabled title="Annuler (Ctrl+Z)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-4"/></svg>Annuler</button>
-  <button class="btn" id="b-imprimer" title="Imprimer le PDF modifié (Ctrl+P)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 8V3h10v5M7 17H4v-7h16v7h-3"/><path d="M7 14h10v7H7z"/></svg>Imprimer</button>
+  <button class="btn" id="b-annuler" disabled title="Annuler (Ctrl+Z)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-4"/></svg><span class="lbl">Annuler</span></button>
+  <button class="btn" id="b-imprimer" title="Imprimer le PDF modifié (Ctrl+P)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 8V3h10v5M7 17H4v-7h16v7h-3"/><path d="M7 14h10v7H7z"/></svg><span class="lbl">Imprimer</span></button>
   <button class="btn" id="b-ouvrir" title="Ouvrir un autre PDF">Ouvrir…</button>
   <a class="btn lien-source" href="/source.zip" title="Logiciel libre (GNU AGPL v3) : télécharger le code source de cette application">Source</a>
-  <button class="btn primaire" id="b-enregistrer" title="Télécharger le PDF modifié (Ctrl+S)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v3h16v-3"/></svg>Enregistrer</button>
+  <button class="btn primaire" id="b-enregistrer" title="Télécharger le PDF modifié (Ctrl+S)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v3h16v-3"/></svg><span class="lbl">Enregistrer</span></button>
 </div>
 
 <div id="corps">
@@ -192,10 +208,24 @@ kbd{background:#eee;border:1px solid #ccc;border-radius:4px;padding:0 5px;font-s
       <input id="v-num" type="text" inputmode="numeric"> <span id="v-total">/ 0</span>
       <button id="v-suiv" title="Page suivante">›</button>
       <span class="sep" style="background:#ccc"></span>
-      <button id="z-moins" title="Zoom arrière (−)">−</button>
-      <button id="z-ajuste" title="Ajuster à la fenêtre">Ajuster</button>
-      <button id="z-plus" title="Zoom avant (+)">+</button>
-      <span id="z-val" style="min-width:44px;text-align:right;color:#777">100 %</span>
+      <button id="z-moins" title="Zoom arrière (Ctrl −)">−</button>
+      <span id="z-groupe">
+        <button id="z-menu" title="Niveau de zoom"><span id="z-val">100 %</span><span class="fleche">▼</span></button>
+        <div id="menu-zoom" class="masque">
+          <button data-ajuste="page">Ajuster à la page <kbd>Ctrl 0</kbd></button>
+          <button data-ajuste="largeur">Ajuster à la largeur <kbd>Ctrl 2</kbd></button>
+          <button data-zoom="1">Taille réelle <kbd>Ctrl 1</kbd></button>
+          <hr>
+          <button data-zoom="0.25">25 %</button>
+          <button data-zoom="0.5">50 %</button>
+          <button data-zoom="0.75">75 %</button>
+          <button data-zoom="1.25">125 %</button>
+          <button data-zoom="1.5">150 %</button>
+          <button data-zoom="2">200 %</button>
+          <button data-zoom="4">400 %</button>
+        </div>
+      </span>
+      <button id="z-plus" title="Zoom avant (Ctrl +)">+</button>
     </div>
     <div id="zone-vue">
       <div id="feuille">
@@ -320,7 +350,7 @@ kbd{background:#eee;border:1px solid #ccc;border-radius:4px;padding:0 5px;font-s
 // =====================================================================
 const S = {
   id: null, nom: '', pages: [], version: 0, taille: 0, annulable: false,
-  page: 0, zoom: 1, mode: 'select', sel: new Set(), ancre: 0,
+  page: 0, zoom: 1, zoomMode: 'page', mode: 'select', sel: new Set(), ancre: 0,
   lignes: [], sig: null, occupe: 0,
 };
 const DPR = Math.min(window.devicePixelRatio || 1, 2);
@@ -329,6 +359,7 @@ const el = {
   nom: $('#nom'), taille: $('#taille'), vignettes: $('#vignettes'), feuille: $('#feuille'),
   img: $('#image-page'), calque: $('#calque'), zone: $('#zone-vue'), droit: $('#droit'),
   occupe: $('#occupe'), accueil: $('#accueil'), num: $('#v-num'), total: $('#v-total'), zval: $('#z-val'),
+  menuZoom: $('#menu-zoom'),
 };
 
 // =====================================================================
@@ -409,7 +440,8 @@ function apresOuverture(e) {
   appliquerEtat(e);
   el.accueil.classList.add('masque');
   document.title = e.nom + ' — Éditeur PDF';
-  setTimeout(ajusterZoom, 0);
+  S.zoomMode = 'page';
+  setTimeout(() => ajusterZoom('page'), 0);
 }
 async function ouvrirNatif() {
   try { const e = await window.pywebview.api.ouvrir_fichiers(); if (e) apresOuverture(e); }
@@ -604,18 +636,44 @@ function allerPage(i, rafraichir = true) {
   if (chg || rafraichir) { rendrePage(); }
   if (chg) rafraichirSelVignettes();
 }
+// La feuille est un simple cadre CSS : lui donner sa taille suffit à voir le zoom
+// tout de suite (le navigateur ré-échelonne l'image en place). L'image nette est
+// redemandée au serveur seulement quand la rafale de zoom s'arrête.
+function poserFeuille() {
+  const p = S.pages[S.page]; if (!p) return;
+  el.feuille.style.width = (p.w * S.zoom) + 'px';
+  el.feuille.style.height = (p.h * S.zoom) + 'px';
+  el.zval.textContent = Math.round(S.zoom * 100) + ' %';
+  marquerNiveauActif();
+}
+// Rendu demandé au serveur : plafonné, sinon une page immense à fort zoom
+// fabriquerait une image de plusieurs dizaines de millions de pixels.
+const PIXELS_MAX = 3600;
+function zoomRendu() {
+  const p = S.pages[S.page]; if (!p) return S.zoom;
+  const brut = S.zoom * DPR;
+  const k = Math.min(1, PIXELS_MAX / (p.w * brut), PIXELS_MAX / (p.h * brut));
+  return Math.max(0.05, Math.round(brut * k * 100) / 100);
+}
+let minuteurImage = null;
+function demanderImage(delai) {
+  clearTimeout(minuteurImage);
+  const lancer = () => {
+    if (!S.pages[S.page]) return;
+    const src = urlPage(S.page, zoomRendu());
+    if (el.img.dataset.src === src) return;
+    el.img.dataset.src = src;
+    const pre = new Image();
+    pre.onload = () => { if (el.img.dataset.src === src) el.img.src = src; };
+    pre.src = src;
+  };
+  if (delai) minuteurImage = setTimeout(lancer, delai); else lancer();
+}
 function rendrePage() {
   const p = S.pages[S.page]; if (!p) return;
   el.num.value = S.page + 1;
-  const w = p.w * S.zoom, h = p.h * S.zoom;
-  el.feuille.style.width = w + 'px'; el.feuille.style.height = h + 'px';
-  const src = urlPage(S.page, S.zoom * DPR);
-  if (el.img.dataset.src !== src) {
-    // précharge la nouvelle image et ne remplace l'ancienne qu'une fois prête (pas de page blanche)
-    el.img.dataset.src = src;
-    const pre = new Image(); pre.onload = () => { if (el.img.dataset.src === src) el.img.src = src; }; pre.src = src;
-  }
-  el.zval.textContent = Math.round(S.zoom * 100) + ' %';
+  poserFeuille();
+  demanderImage(0);
   fermerEditeurs();
   el.calque.replaceChildren();
   if (S.mode === 'texte') chargerLignes();
@@ -623,27 +681,143 @@ function rendrePage() {
 $('#v-prec').onclick = () => allerPage(S.page - 1);
 $('#v-suiv').onclick = () => allerPage(S.page + 1);
 el.num.onchange = () => allerPage((parseInt(el.num.value, 10) || 1) - 1);
-function zoomer(f, centre) {
-  const z0 = S.zoom; S.zoom = Math.max(0.2, Math.min(5, S.zoom * f));
-  if (S.zoom === z0) return;
-  const zone = el.zone;
-  const cx = centre ? centre.x : zone.clientWidth / 2, cy = centre ? centre.y : zone.clientHeight / 2;
-  const sx = (zone.scrollLeft + cx) / z0, sy = (zone.scrollTop + cy) / z0;
-  rendrePage();
-  zone.scrollLeft = sx * S.zoom - cx; zone.scrollTop = sy * S.zoom - cy;
+const ZOOM_MIN = 0.1, ZOOM_MAX = 5;
+const NIVEAUX = [0.25, 0.33, 0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4, 5];
+
+// Repositionne ce qui est posé SUR la page sans rien détruire : c'est ce qui
+// permet de zoomer pendant qu'un éditeur ou une signature est ouvert.
+function replacerCalque() {
+  el.calque.querySelectorAll('.ligne').forEach((d) => {
+    const l = S.lignes[+d.dataset.k]; if (!l) return;
+    const [x0, y0, x1, y1] = l.bbox_aff;
+    Object.assign(d.style, { left: x0 * S.zoom + 'px', top: y0 * S.zoom + 'px', width: (x1 - x0) * S.zoom + 'px', height: (y1 - y0) * S.zoom + 'px' });
+  });
+  el.calque.querySelectorAll('#editeur-ligne, #editeur-libre, .aide-edit, #pose').forEach((e) => { if (e._placer) e._placer(); });
 }
-function ajusterZoom() {
+
+// Change l'échelle en gardant sous le curseur (ou au centre) le point du document
+// qui s'y trouvait. `centre` est en coordonnées de fenêtre.
+function poserZoom(valeur, centre) {
   const p = S.pages[S.page]; if (!p) return;
-  const z = Math.min((el.zone.clientWidth - 60) / p.w, (el.zone.clientHeight - 60) / p.h);
-  S.zoom = Math.max(0.2, Math.min(5, z)); rendrePage();
+  const nouveau = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, valeur));
+  if (Math.abs(nouveau - S.zoom) < 1e-4) { poserFeuille(); return; }
+  const zone = el.zone, rz = zone.getBoundingClientRect();
+  const cx = centre ? centre.x : rz.left + zone.clientWidth / 2;
+  const cy = centre ? centre.y : rz.top + zone.clientHeight / 2;
+  const rf = el.feuille.getBoundingClientRect();
+  const dx = (cx - rf.left) / S.zoom, dy = (cy - rf.top) / S.zoom;
+  S.zoom = nouveau;
+  poserFeuille(); replacerCalque();
+  const rf2 = el.feuille.getBoundingClientRect();   // la lecture force la mise en page
+  zone.scrollLeft += (rf2.left + dx * S.zoom) - cx;
+  zone.scrollTop += (rf2.top + dy * S.zoom) - cy;
+  demanderImage(180);
 }
-$('#z-plus').onclick = () => zoomer(1.2); $('#z-moins').onclick = () => zoomer(1 / 1.2); $('#z-ajuste').onclick = ajusterZoom;
+
+// Ajustements : la page entière, ou sa largeur. Le MODE est mémorisé, si bien
+// qu'un redimensionnement de la fenêtre le recalcule au lieu de laisser la page
+// à une échelle devenue fausse.
+function ajusterZoom(mode) {
+  const p = S.pages[S.page]; if (!p) return false;
+  const zone = el.zone;
+  if (zone.clientWidth < 80 || zone.clientHeight < 80) return false;  // pas encore mesurable
+  S.zoomMode = (mode === 'largeur') ? 'largeur' : 'page';
+  const MARGE = 48;
+  let z;
+  if (S.zoomMode === 'largeur') {
+    z = (zone.clientWidth - MARGE) / p.w;
+    // si la page devient plus haute que la vue, une barre de défilement va
+    // apparaître et manger de la largeur : on la réserve d'avance
+    if (p.h * z > zone.clientHeight - MARGE) z = (zone.clientWidth - MARGE - 16) / p.w;
+  } else {
+    z = Math.min((zone.clientWidth - MARGE) / p.w, (zone.clientHeight - MARGE) / p.h);
+  }
+  S.zoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, z));
+  poserFeuille(); replacerCalque(); demanderImage(0);
+  zone.scrollLeft = 0; if (S.zoomMode === 'page') zone.scrollTop = 0;
+  return true;
+}
+function zoomFixe(valeur, centre) { S.zoomMode = 'fixe'; poserZoom(valeur, centre); }
+function zoomPasApas(sens) {
+  const suivants = sens > 0 ? NIVEAUX.filter((n) => n > S.zoom + 1e-3)
+                            : NIVEAUX.filter((n) => n < S.zoom - 1e-3).reverse();
+  zoomFixe(suivants.length ? suivants[0] : (sens > 0 ? ZOOM_MAX : ZOOM_MIN));
+}
+function marquerNiveauActif() {
+  el.menuZoom.querySelectorAll('button').forEach((b) => {
+    const actif = b.dataset.ajuste ? b.dataset.ajuste === S.zoomMode
+                                   : S.zoomMode === 'fixe' && Math.abs(+b.dataset.zoom - S.zoom) < 1e-3;
+    b.classList.toggle('actif', actif);
+  });
+}
+$('#z-plus').onclick = () => zoomPasApas(1);
+$('#z-moins').onclick = () => zoomPasApas(-1);
+
+// -- menu des niveaux ---------------------------------------------------
+function ouvrirMenuZoom(ouvrir) {
+  el.menuZoom.classList.toggle('masque', !ouvrir);
+  if (ouvrir) marquerNiveauActif();
+}
+$('#z-menu').onclick = (e) => { e.stopPropagation(); ouvrirMenuZoom(el.menuZoom.classList.contains('masque')); };
+el.menuZoom.onclick = (e) => {
+  const b = e.target.closest('button'); if (!b) return;
+  e.stopPropagation();
+  ouvrirMenuZoom(false);
+  if (b.dataset.ajuste) ajusterZoom(b.dataset.ajuste); else zoomFixe(+b.dataset.zoom);
+};
+document.addEventListener('click', () => ouvrirMenuZoom(false));
+
+// -- molette et pincement ------------------------------------------------
+// Le pincement d'un pavé tactile arrive comme une molette avec ctrlKey : le même
+// chemin sert aux deux. preventDefault est indispensable, sinon le moteur applique
+// EN PLUS son propre zoom et c'est toute l'interface qui grossit.
 el.zone.addEventListener('wheel', (e) => {
-  if (!e.ctrlKey) return; e.preventDefault();
-  const r = el.zone.getBoundingClientRect();
-  zoomer(e.deltaY < 0 ? 1.12 : 1 / 1.12, { x: e.clientX - r.left, y: e.clientY - r.top });
+  if (!e.ctrlKey) return;
+  e.preventDefault();
+  const f = Math.max(0.5, Math.min(2, Math.exp(-e.deltaY * 0.002)));
+  zoomFixe(S.zoom * f, { x: e.clientX, y: e.clientY });
 }, { passive: false });
-// (un redimensionnement de la fenêtre ne redessine pas la page : cela fermerait un éditeur en cours)
+
+// -- panoramique à la main ----------------------------------------------
+let pano = null;
+el.zone.addEventListener('pointerdown', (e) => {
+  const milieu = e.button === 1;
+  if (!milieu && !(S.mode === 'select' && e.button === 0)) return;
+  if (e.target.closest('#pose, #editeur-ligne, #editeur-libre')) return;
+  pano = { x: e.clientX, y: e.clientY, sl: el.zone.scrollLeft, st: el.zone.scrollTop, id: e.pointerId };
+  el.zone.setPointerCapture(e.pointerId);
+  el.calque.style.cursor = 'grabbing';
+  e.preventDefault();
+});
+el.zone.addEventListener('pointermove', (e) => {
+  if (!pano || e.pointerId !== pano.id) return;
+  el.zone.scrollLeft = pano.sl - (e.clientX - pano.x);
+  el.zone.scrollTop = pano.st - (e.clientY - pano.y);
+});
+const finPano = () => { pano = null; el.calque.style.cursor = ''; };
+el.zone.addEventListener('pointerup', finPano);
+el.zone.addEventListener('pointercancel', finPano);
+
+// -- la fenêtre change de taille ----------------------------------------
+// Un ResizeObserver plutôt que l'événement resize : il se déclenche aussi à la
+// PREMIÈRE mise en page, quand la zone acquiert enfin une hauteur — sans quoi
+// l'ajustement initial se calculait sur une zone vide et tombait au plancher.
+let dernierGabarit = '';
+function surChangementDeTaille() {
+  if (!S.id) return;
+  const g = el.zone.clientWidth + 'x' + el.zone.clientHeight;
+  if (g === dernierGabarit) return;   // rend les deux déclencheurs inoffensifs l'un pour l'autre
+  dernierGabarit = g;
+  if (S.zoomMode === 'fixe') { poserFeuille(); replacerCalque(); }
+  else ajusterZoom(S.zoomMode);
+}
+const surTaille = debounce(surChangementDeTaille, 120);
+// La référence est gardée : un ResizeObserver sans référence forte peut être ramassé.
+const observateurTaille = new ResizeObserver(surTaille);
+observateurTaille.observe($('#centre'));
+// Second déclencheur : l'observateur n'est pas livré quand la page est masquée
+// (il suit le rythme du rendu), l'événement resize prend alors le relais.
+window.addEventListener('resize', surTaille);
 
 // =====================================================================
 // Modes
@@ -682,7 +856,7 @@ async function chargerLignes() {
 function dessinerLignes() {
   el.calque.replaceChildren();
   S.lignes.forEach((l, k) => {
-    const d = document.createElement('div'); d.className = 'ligne';
+    const d = document.createElement('div'); d.className = 'ligne'; d.dataset.k = k;
     const [x0, y0, x1, y1] = l.bbox_aff;
     Object.assign(d.style, { left: x0 * S.zoom + 'px', top: y0 * S.zoom + 'px', width: (x1 - x0) * S.zoom + 'px', height: (y1 - y0) * S.zoom + 'px' });
     d.title = l.texte;
@@ -703,13 +877,18 @@ function editerLigne(k) {
   const { fam, gras, ital } = familleCss(b);
   const c = b.color;
   Object.assign(inp.style, {
-    left: (x0 * S.zoom - 3) + 'px', top: (y0 * S.zoom - 2) + 'px', height: ((y1 - y0) * S.zoom + 4) + 'px',
-    width: Math.max((x1 - x0) * S.zoom + 40, 120) + 'px', fontSize: (b.size * S.zoom) + 'px', fontFamily: fam,
-    fontWeight: gras ? '700' : '400', fontStyle: ital ? 'italic' : 'normal',
+    fontFamily: fam, fontWeight: gras ? '700' : '400', fontStyle: ital ? 'italic' : 'normal',
     color: `rgb(${c >> 16 & 255},${c >> 8 & 255},${c & 255})`,
   });
   const aide = document.createElement('div'); aide.className = 'aide-edit'; aide.textContent = 'Entrée : valider · Échap : annuler · vide : supprimer';
-  aide.style.left = x0 * S.zoom + 'px'; aide.style.top = (y0 * S.zoom - 26) + 'px';
+  // positions recalculées depuis les coordonnées du document : le zoom peut changer
+  // pendant la saisie sans déplacer ni fermer l'éditeur
+  inp._placer = () => Object.assign(inp.style, {
+    left: (x0 * S.zoom - 3) + 'px', top: (y0 * S.zoom - 2) + 'px', height: ((y1 - y0) * S.zoom + 4) + 'px',
+    width: Math.max((x1 - x0) * S.zoom + 40, 120) + 'px', fontSize: (b.size * S.zoom) + 'px',
+  });
+  aide._placer = () => { aide.style.left = x0 * S.zoom + 'px'; aide.style.top = (y0 * S.zoom - 26) + 'px'; };
+  inp._placer(); aide._placer();
   let fini = false;
   const valider = async () => {
     if (fini) return; fini = true;
@@ -743,14 +922,19 @@ function ouvrirTexteLibre(px, py) {
   const taille = +$('#lib-taille').value || 12, couleur = $('#lib-couleur').value, police = $('#lib-police').value;
   const fam = police.startsWith('ti') ? 'Georgia, "Times New Roman", serif' : police.startsWith('co') ? '"Courier New", monospace' : 'Arial, Helvetica, sans-serif';
   const inp = document.createElement('input'); inp.id = 'editeur-libre'; inp.type = 'text'; inp.placeholder = 'Votre texte…';
-  const h = taille * S.zoom * 1.25;
-  Object.assign(inp.style, { left: (px - 3) + 'px', top: (py - h * 0.82) + 'px', height: h + 'px', fontSize: (taille * S.zoom) + 'px', fontFamily: fam, color: couleur, width: '220px',
+  const dx = px / S.zoom, dy = py / S.zoom;   // point d'ancrage, en coordonnées du document
+  Object.assign(inp.style, { fontFamily: fam, color: couleur, width: '220px',
     fontWeight: /bo|bi$/.test(police) ? '700' : '400', fontStyle: /it|bi$/.test(police) ? 'italic' : 'normal' });
+  inp._placer = () => {
+    const h = taille * S.zoom * 1.25;
+    Object.assign(inp.style, { left: (dx * S.zoom - 3) + 'px', top: (dy * S.zoom - h * 0.82) + 'px', height: h + 'px', fontSize: (taille * S.zoom) + 'px' });
+  };
+  inp._placer();
   let fini = false;
   const valider = async () => {
     if (fini) return; fini = true; const t = inp.value; inp.remove();
     if (!t.trim()) return;
-    await op({ type: 'texte_libre', page: S.page, x: px / S.zoom, y: py / S.zoom, texte: t, taille, couleur, police });
+    await op({ type: 'texte_libre', page: S.page, x: dx, y: dy, texte: t, taille, couleur, police });
     toast('Texte ajouté.');
   };
   inp.onkeydown = (e) => { e.stopPropagation(); if (e.key === 'Enter') valider(); if (e.key === 'Escape') { fini = true; inp.remove(); } };
@@ -886,7 +1070,7 @@ function poserSignature(px, py) {
       x = Math.max(0, Math.min(p.w - wPt, x)); y = Math.max(0, Math.min(p.h - hPt, y));
       Object.assign(pose.style, { left: x * S.zoom + 'px', top: y * S.zoom + 'px', width: wPt * S.zoom + 'px', height: hPt * S.zoom + 'px' });
     };
-    place(); el.calque.appendChild(pose);
+    place(); pose._placer = place; el.calque.appendChild(pose);
     // déplacement
     let d0 = null;
     pose.addEventListener('pointerdown', (e) => {
@@ -938,13 +1122,24 @@ document.addEventListener('keydown', (e) => {
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'o') { e.preventDefault(); $('#fichier-ouvrir').click(); return; }
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'p' && S.id) { e.preventDefault(); imprimer(); return; }
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a' && !dansChamp && S.id) { e.preventDefault(); $('#p-tout').click(); return; }
+  // Zoom : preventDefault même quand la touche nous sert, sinon le moteur applique
+  // son propre zoom par-dessus et c'est toute la fenêtre qui change d'échelle.
+  if ((e.ctrlKey || e.metaKey) && S.id && ['+', '=', '-', '_', '0', '1', '2'].includes(e.key)) {
+    e.preventDefault();
+    if (e.key === '+' || e.key === '=') zoomPasApas(1);
+    else if (e.key === '-' || e.key === '_') zoomPasApas(-1);
+    else if (e.key === '0') ajusterZoom('page');
+    else if (e.key === '1') zoomFixe(1);
+    else if (e.key === '2') ajusterZoom('largeur');
+    return;
+  }
   if (dansChamp || !S.id) return;
   switch (e.key) {
     case 'Delete': case 'Backspace': supprimerSel(); break;
     case 'PageDown': case 'ArrowRight': allerPage(S.page + 1); break;
     case 'PageUp': case 'ArrowLeft': allerPage(S.page - 1); break;
-    case '+': case '=': zoomer(1.2); break;
-    case '-': zoomer(1 / 1.2); break;
+    case '+': case '=': zoomPasApas(1); break;
+    case '-': zoomPasApas(-1); break;
     case 'v': case 'V': setMode('select'); break;
     case 't': case 'T': setMode('texte'); break;
     case 'a': case 'A': setMode('libre'); break;
