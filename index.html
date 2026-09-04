@@ -437,10 +437,10 @@ async function fusionner(fichiers, position) {
 const NATIF = () => !!(window.pywebview && window.pywebview.api);
 function apresOuverture(e) {
   S.page = 0; S.sel.clear(); S.lignes = [];
+  S.zoomMode = 'page';   // avant le premier rendu : sinon un second document hérite du mode du précédent
   appliquerEtat(e);
   el.accueil.classList.add('masque');
   document.title = e.nom + ' — Éditeur PDF';
-  S.zoomMode = 'page';
   setTimeout(() => ajusterZoom('page'), 0);
 }
 async function ouvrirNatif() {
@@ -574,7 +574,8 @@ async function supprimerSel() {
   const pages = [...S.sel].sort((a, b) => a - b); const n = pages.length;
   const cible = Math.min(pages[0], S.pages.length - 1 - n);
   await op({ type: 'supprimer', pages });
-  S.sel.clear(); allerPage(Math.max(0, cible), true); rafraichirSelVignettes();
+  // `op` a déjà rendu la page courante : ne re-rendre que si l'on en change
+  S.sel.clear(); allerPage(Math.max(0, cible), false); rafraichirSelVignettes();
   toast(`${n} page${n > 1 ? 's' : ''} supprimée${n > 1 ? 's' : ''} — Ctrl+Z pour annuler.`);
 }
 $('#p-gauche').onclick = () => op({ type: 'rotation', pages: [...S.sel], angle: 270 });
@@ -589,7 +590,8 @@ $('#p-extraire').onclick = async () => {
   }
   const a = document.createElement('a'); a.href = `/api/doc/${S.id}/extraire?pages=${pages.join(',')}`; a.download = ''; a.click();
 };
-$('#b-annuler').onclick = () => op({ type: 'annuler' }).then(() => { S.lignes = []; if (S.mode === 'texte') chargerLignes(); });
+// `rendrePage` recharge déjà les lignes en mode Texte : pas de second appel
+$('#b-annuler').onclick = () => op({ type: 'annuler' });
 $('#b-enregistrer').onclick = enregistrer;
 $('#b-imprimer').onclick = imprimer;
 let cadreImpression = null;

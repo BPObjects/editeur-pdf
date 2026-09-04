@@ -91,7 +91,15 @@ class Document:
 
     # -- état -----------------------------------------------------------------
     def taille(self) -> int:
-        return len(self.doc.tobytes(garbage=4, deflate=True))
+        """Poids indicatif du document, recalculé après chaque opération.
+
+        `garbage=1` plutôt que 4 : mesuré sur trois documents réels (338 à 8749
+        xrefs), l'écart de taille reste sous 0,32 % alors que le temps passe de
+        1376 ms à 150 ms sur le plus gros — et ce temps était payé sous le
+        verrou du document. Les octets réellement exportés, eux, restent
+        nettoyés à fond (octets_export et compresser gardent garbage=4).
+        """
+        return len(self.doc.tobytes(garbage=1, deflate=True))
 
     def etat(self, avec_taille=True) -> dict:
         pages = []
@@ -519,11 +527,13 @@ class Handler(BaseHTTPRequestHandler):
 
     # -- utilitaires --------------------------------------------------------
     def _envoyer(self, code: int, corps: bytes, ctype: str, entetes: dict | None = None):
+        # Les en-têtes de l'appelant REMPLACENT les valeurs par défaut : les
+        # émettre tous les deux enverrait deux Cache-Control, et no-store
+        # l'emporterait — le cache navigateur des pages ne servirait jamais.
+        tous = {"Content-Type": ctype, "Content-Length": str(len(corps)), "Cache-Control": "no-store"}
+        tous.update(entetes or {})
         self.send_response(code)
-        self.send_header("Content-Type", ctype)
-        self.send_header("Content-Length", str(len(corps)))
-        self.send_header("Cache-Control", "no-store")
-        for k, v in (entetes or {}).items():
+        for k, v in tous.items():
             self.send_header(k, v)
         self.end_headers()
         self.wfile.write(corps)
@@ -564,6 +574,8 @@ class Handler(BaseHTTPRequestHandler):
             if chemin.startswith("/api/"):
                 return self._api_get(chemin, q)
             return self._fichier(chemin.lstrip("/"))
+        except ConnectionError:
+            return          # le client est parti (image devenue inutile) : rien à répondre
         except KeyError as e:
             self._erreur(404, str(e))
         except Exception as e:
@@ -607,14 +619,24 @@ class Handler(BaseHTTPRequestHandler):
             return self._envoyer(200, octets, "application/pdf",
                                  {"Content-Disposition": "attachment; filename*=UTF-8''" + urllib.parse.quote(nom)})
         if parts[2] == "page" and len(parts) >= 4:
-            n = int(parts[3].split(".")[0])
-            if n < 0 or n >= len(d.doc):
-                return self._erreur(404, "Page hors limites")
+            try:
+                n = int(parts[3].split(".")[0])
+            except ValueError:
+                return self._erreur(400, "Numéro de page invalide")
             if len(parts) >= 5 and parts[4] == "texte":
                 with d.verrou:
+                    if not 0 <= n < len(d.doc):
+                        return self._erreur(404, "Page hors limites")
                     return self._json({"lignes": d.lignes_texte(n)})
-            zoom = float(q.get("zoom", ["1"])[0])
+            try:
+                zoom = float(q.get("zoom", ["1"])[0])
+            except ValueError:
+                return self._erreur(400, "Zoom invalide")
+            # la borne est vérifiée SOUS le verrou : une suppression de page
+            # concurrente ferait sinon lever IndexError, donc un 500
             with d.verrou:
+                if not 0 <= n < len(d.doc):
+                    return self._erreur(404, "Page hors limites")
                 png = d.rendu_png(n, zoom)
             return self._envoyer(200, png, "image/png", {"Cache-Control": "private, max-age=3600"})
         return self._erreur(404, "Route inconnue")
@@ -663,6 +685,8 @@ class Handler(BaseHTTPRequestHandler):
                     return self._json({"ok": True})
             self._corps()
             return self._erreur(404, "Route inconnue")
+        except ConnectionError:
+            return
         except KeyError as e:
             self._erreur(404, str(e))
         except ValueError as e:
