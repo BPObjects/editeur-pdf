@@ -2,3 +2,6 @@
 __pycache__/
 *.pyc
 _test/
+build/
+dist/
+*.spec

@@ -8,10 +8,26 @@ Aucun fichier ne quitte l'ordinateur.
 
 ## Lancer
 
-Double-cliquer sur `Editeur PDF.bat`. Le premier lancement crée `.venv` et
-installe PyMuPDF (~30 s). Le navigateur s'ouvre sur http://localhost:8790/.
+**Application bureau** (recommandé) : double-cliquer sur `Editeur PDF.bat`.
+Fenêtre native, boîtes Ouvrir / Enregistrer du système, aucun onglet de
+navigateur. Le premier lancement crée `.venv` et installe PyMuPDF + pywebview
+(~40 s). En ligne de commande : `python app.py [fichier.pdf ...]`.
 
-En ligne de commande : `python serveur.py [--port 8790] [--sans-navigateur]`.
+Un PDF peut aussi être glissé sur l'icône de l'application, ou ouvert par
+« Ouvrir avec ».
+
+**Variante navigateur** : `Editeur PDF (navigateur).bat`, ou
+`python serveur.py [--port 8790] [--sans-navigateur]` — le même éditeur servi
+sur http://localhost:8790/. Utile sur une machine sans WebView2, ou pour
+travailler depuis un autre poste du réseau local.
+
+## Exécutable Windows
+
+`python build.py` produit `dist/Editeur PDF BPO.exe` : un seul fichier d'environ
+57 Mo, sans Python ni installation à prévoir sur la machine de destination
+(WebView2 est fourni avec Windows 11). L'icône est générée par `make_icon.py`.
+Les sources sont embarquées dans l'exécutable pour que le bouton **Source**
+continue de les livrer, comme l'exige l'AGPL.
 
 ## Ce que ça fait
 
@@ -25,7 +41,7 @@ En ligne de commande : `python serveur.py [--port 8790] [--sans-navigateur]`.
 | Fusionner | Bouton **Fusionner** ou déposer des fichiers sur la fenêtre. PDF et images (PNG, JPG…). Inséré après la page sélectionnée s'il y en a une, sinon à la fin. |
 | Annuler | Ctrl+Z, 30 niveaux, toutes opérations comprises (compression incluse). |
 | Imprimer | Bouton **Imprimer** ou Ctrl+P : le PDF modifié (pas la page web) part dans la boîte d'impression du navigateur. |
-| Enregistrer | Télécharge `<nom>-modifie.pdf`. Le fichier d'origine n'est jamais modifié. |
+| Enregistrer | Boîte « Enregistrer sous » du système (application bureau) ou téléchargement de `<nom>-modifie.pdf` (navigateur). Le fichier d'origine n'est jamais touché. |
 
 Raccourcis : V / T / A / S changent de mode, Suppr efface les pages
 sélectionnées, +/− zoom (Ctrl+molette aussi), flèches pour changer de page,
@@ -41,16 +57,22 @@ Ctrl+S enregistre, Ctrl+P imprime, Ctrl+O ouvre.
 - Pas de formulaires interactifs (champs AcroForm), pas d'OCR des scans, pas de
   mot de passe (les PDF chiffrés sont refusés à l'ouverture).
 - Fichiers testés jusqu'à 190 pages / 52 Mo : compression forte en ~20 s.
+- L'application bureau a besoin du moteur WebView2, fourni d'origine avec
+  Windows 11 et installable gratuitement sur Windows 10. À défaut, la variante
+  navigateur fonctionne partout.
 
 ## Fichiers
 
+- `app.py` — application bureau : fenêtre native (pywebview) + dialogues système.
 - `serveur.py` — API HTTP + toute la logique PDF (classe `Document`).
   Le texte ajouté ou réécrit avec une police standard passe par les polices
   URW embarquées dans MuPDF (Nimbus Sans / Roman / Mono, équivalents métriques
   d'Helvetica, Times, Courier) enregistrées en police CID : tout l'Unicode
   couvert (—, €, œ, →…) s'écrit, et l'export ne garde que les glyphes utilisés.
 - `index.html` — interface, un seul fichier, sans dépendance.
-- `requirements.txt` — PyMuPDF.
+- `make_icon.py`, `build.py` — icône et construction de l'exécutable.
+- `requirements.txt` / `requirements-app.txt` / `requirements-build.txt` —
+  moteur seul / application bureau / outils de construction.
 - `LICENSE`, `THIRD-PARTY.md` — licence et composants tiers.
 
 ## Licence

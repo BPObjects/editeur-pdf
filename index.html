@@ -26,7 +26,7 @@ input,select{font:inherit}
 
 /* ------- en-tête ------- */
 #entete{height:52px;background:var(--chrome);color:var(--texte-inv);display:flex;align-items:center;gap:8px;padding:0 12px;user-select:none}
-#logo{font-weight:800;letter-spacing:.5px;background:var(--accent);color:#fff;border-radius:6px;padding:4px 8px;font-size:12px}
+#logo{font-weight:800;letter-spacing:.5px;background:var(--accent);color:#fff;border-radius:6px;padding:4px 8px;font-size:12px;white-space:nowrap;flex:none}
 #nom{font-weight:600;max-width:34vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #taille{color:#9a9ca8;font-size:12.5px}
 .sep{width:1px;height:26px;background:#3a3b44;margin:0 4px}
@@ -383,11 +383,7 @@ async function ouvrir(fichiers) {
   if (!fichiers.length) { toast('Choisissez un fichier PDF ou une image.', true); return; }
   try {
     const e = await envoyerFichier('/api/ouvrir', fichiers[0]);
-    S.page = 0; S.sel.clear(); S.lignes = [];
-    appliquerEtat(e);
-    el.accueil.classList.add('masque');
-    document.title = e.nom + ' — Éditeur PDF';
-    setTimeout(ajusterZoom, 0);
+    apresOuverture(e);
     if (fichiers.length > 1) await fusionner(fichiers.slice(1), null);
   } catch (err) { toast(err.message, true); }
 }
@@ -406,10 +402,34 @@ async function fusionner(fichiers, position) {
     toast(`${ajoutees} page${ajoutees > 1 ? 's' : ''} ajoutée${ajoutees > 1 ? 's' : ''} (${fichiers.length} fichier${fichiers.length > 1 ? 's' : ''}).`);
   } catch (err) { toast(err.message, true); }
 }
-$('#b-choisir').onclick = () => $('#fichier-ouvrir').click();
-$('#b-ouvrir').onclick = () => $('#fichier-ouvrir').click();
+// Application bureau (pywebview) : les boîtes Ouvrir / Enregistrer sont celles du système.
+const NATIF = () => !!(window.pywebview && window.pywebview.api);
+function apresOuverture(e) {
+  S.page = 0; S.sel.clear(); S.lignes = [];
+  appliquerEtat(e);
+  el.accueil.classList.add('masque');
+  document.title = e.nom + ' — Éditeur PDF';
+  setTimeout(ajusterZoom, 0);
+}
+async function ouvrirNatif() {
+  try { const e = await window.pywebview.api.ouvrir_fichiers(); if (e) apresOuverture(e); }
+  catch (err) { toast(String(err && err.message || err), true); }
+}
+async function fusionnerNatif(position) {
+  try {
+    const e = await window.pywebview.api.fusionner_fichiers(S.id, position);
+    if (!e) return;
+    appliquerEtat(e);
+    toast(`${e.ajoutees} page${e.ajoutees > 1 ? 's' : ''} ajoutée${e.ajoutees > 1 ? 's' : ''}.`);
+  } catch (err) { toast(String(err && err.message || err), true); }
+}
+$('#b-choisir').onclick = () => NATIF() ? ouvrirNatif() : $('#fichier-ouvrir').click();
+$('#b-ouvrir').onclick = () => NATIF() ? ouvrirNatif() : $('#fichier-ouvrir').click();
 $('#fichier-ouvrir').onchange = (e) => { ouvrir(e.target.files); e.target.value = ''; };
-$('#b-fusion').onclick = () => $('#fichier-fusion').click();
+$('#b-fusion').onclick = () => {
+  const pos = S.sel.size === 1 ? [...S.sel][0] + 1 : null;
+  NATIF() ? fusionnerNatif(pos) : $('#fichier-fusion').click();
+};
 $('#fichier-fusion').onchange = (e) => {
   const pos = S.sel.size === 1 ? [...S.sel][0] + 1 : null;
   fusionner(e.target.files, pos); e.target.value = '';
@@ -527,9 +547,15 @@ async function supprimerSel() {
 }
 $('#p-gauche').onclick = () => op({ type: 'rotation', pages: [...S.sel], angle: 270 });
 $('#p-droite').onclick = () => op({ type: 'rotation', pages: [...S.sel], angle: 90 });
-$('#p-extraire').onclick = () => {
+$('#p-extraire').onclick = async () => {
   if (!S.sel.size) return;
-  const a = document.createElement('a'); a.href = `/api/doc/${S.id}/extraire?pages=${[...S.sel].sort((x, y) => x - y).join(',')}`; a.download = ''; a.click();
+  const pages = [...S.sel].sort((x, y) => x - y);
+  if (NATIF()) {
+    try { const c = await window.pywebview.api.extraire(S.id, pages, S.nom.replace(/\.pdf$/i, '') + '-extrait.pdf'); if (c) toast('Enregistré : ' + c, false, 5000); }
+    catch (err) { toast(String(err && err.message || err), true); }
+    return;
+  }
+  const a = document.createElement('a'); a.href = `/api/doc/${S.id}/extraire?pages=${pages.join(',')}`; a.download = ''; a.click();
 };
 $('#b-annuler').onclick = () => op({ type: 'annuler' }).then(() => { S.lignes = []; if (S.mode === 'texte') chargerLignes(); });
 $('#b-enregistrer').onclick = enregistrer;
@@ -556,9 +582,14 @@ function imprimer() {
   f.src = url; document.body.appendChild(f);
   toast("Préparation de l’impression…");
 }
-function enregistrer() {
+async function enregistrer() {
   if (!S.id) return;
   const nom = S.nom.replace(/\.pdf$/i, '') + '-modifie.pdf';
+  if (NATIF()) {
+    try { const c = await window.pywebview.api.enregistrer(S.id, nom); if (c) toast('Enregistré : ' + c, false, 5000); }
+    catch (err) { toast(String(err && err.message || err), true); }
+    return;
+  }
   const a = document.createElement('a'); a.href = `/api/doc/${S.id}/telecharger?nom=${encodeURIComponent(nom)}`; a.download = nom; a.click();
   toast('Téléchargement de ' + nom);
 }
@@ -926,6 +957,22 @@ document.addEventListener('keydown', (e) => {
 // Démarrage
 // =====================================================================
 padInit(); rendreSigs();
+// Application bureau : liens externes dans le navigateur du système, archive du source par boîte Enregistrer
+document.addEventListener('click', async (e) => {
+  const a = e.target.closest('a[href]'); if (!a || !NATIF()) return;
+  if (a.getAttribute('href') === '/source.zip') {
+    e.preventDefault();
+    try { const c = await window.pywebview.api.enregistrer_source(); if (c) toast('Source enregistré : ' + c, false, 5000); } catch (err) { toast(String(err), true); }
+  } else if (a.target === '_blank') {
+    e.preventDefault(); window.pywebview.api.ouvrir_lien(new URL(a.getAttribute('href'), location.href).href);
+  }
+});
+// Document déjà ouvert par l'application (fichier passé au lancement)
+(async () => {
+  const id = new URLSearchParams(location.search).get('doc');
+  if (!id) return;
+  try { const e = await api(`/api/doc/${id}`); apresOuverture(e); } catch (err) { toast(err.message, true); }
+})();
 window.addEventListener('resize', debounce(padInit, 200));
 fetch('/api/sante').then(r => r.json()).catch(() => toast('Le serveur ne répond pas. Relancez « Éditeur PDF.bat ».', true, 8000));
 </script>

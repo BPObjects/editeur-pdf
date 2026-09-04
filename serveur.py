@@ -40,7 +40,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import pymupdf
 
-ICI = os.path.dirname(os.path.abspath(__file__))
+# Dossier des ressources : celui du script, ou le dossier temporaire de PyInstaller (exécutable gelé)
+ICI = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
 PORT_DEFAUT = 8790
 MAX_HIST = 30           # profondeur d'annulation
 MAX_UPLOAD = 1 << 30    # 1 Go
@@ -708,8 +709,9 @@ class Handler(BaseHTTPRequestHandler):
         return e
 
 
-FICHIERS_SOURCE = ("serveur.py", "index.html", "README.md", "LICENSE", "THIRD-PARTY.md",
-                   "requirements.txt", "Editeur PDF.bat")
+FICHIERS_SOURCE = ("serveur.py", "app.py", "make_icon.py", "build.py", "index.html", "README.md", "LICENSE",
+                   "THIRD-PARTY.md", "requirements.txt", "requirements-app.txt", "requirements-build.txt",
+                   "Editeur PDF.bat", "Editeur PDF (navigateur).bat")
 
 
 def archive_source() -> bytes:
@@ -739,13 +741,19 @@ def _purger(age_max=6 * 3600):
         DOCS.pop(k, None)
 
 
+def creer_serveur(port: int = 0) -> ThreadingHTTPServer:
+    """Serveur HTTP local ; port 0 = port libre choisi par le système."""
+    srv = ThreadingHTTPServer(("127.0.0.1", port), Handler)
+    srv.daemon_threads = True
+    return srv
+
+
 def main():
     ap = argparse.ArgumentParser(description="Éditeur PDF BPO")
     ap.add_argument("--port", type=int, default=PORT_DEFAUT)
     ap.add_argument("--sans-navigateur", action="store_true")
     a = ap.parse_args()
-    srv = ThreadingHTTPServer(("127.0.0.1", a.port), Handler)
-    srv.daemon_threads = True
+    srv = creer_serveur(a.port)
     url = "http://localhost:%d/" % a.port
     print("Éditeur PDF BPO — %s  (PyMuPDF %s)" % (url, pymupdf.VersionBind))
     print("Ctrl+C pour arrêter.")

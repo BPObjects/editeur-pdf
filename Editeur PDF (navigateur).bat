@@ -1,16 +1,17 @@
 @echo off
-rem Lance l'Editeur PDF BPO (application bureau). Le premier lancement installe l'environnement.
+rem Variante navigateur : le meme editeur, servi sur http://localhost:8790/
 setlocal
 cd /d "%~dp0"
 
-if not exist ".venv\Scripts\pythonw.exe" (
+if not exist ".venv\Scripts\python.exe" (
     echo Installation de l'environnement Python, patientez...
     python -m venv .venv || goto :nopython
     ".venv\Scripts\python.exe" -m pip install --upgrade pip
     ".venv\Scripts\python.exe" -m pip install -r requirements-app.txt || goto :fail
 )
 
-start "" ".venv\Scripts\pythonw.exe" "app.py" %*
+echo Editeur PDF BPO : http://localhost:8790/  (fermez cette fenetre pour arreter)
+".venv\Scripts\python.exe" serveur.py %*
 exit /b 0
 
 :nopython
