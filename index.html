@@ -595,10 +595,17 @@ $('#b-annuler').onclick = () => op({ type: 'annuler' });
 $('#b-enregistrer').onclick = enregistrer;
 $('#b-imprimer').onclick = imprimer;
 let cadreImpression = null;
-function imprimer() {
+async function imprimer() {
   if (!S.id) return;
   fermerEditeurs();
   const nom = S.nom.replace(/\.pdf$/i, '') + '-modifie.pdf';
+  if (NATIF()) {
+    // Sur Mac, l'impression depuis un cadre est inerte : le système s'en charge.
+    try {
+      const r = await window.pywebview.api.imprimer(S.id, nom);
+      if (r === 'systeme') { toast('Le PDF s\'est ouvert dans Aperçu : Cmd+P pour l\'imprimer.', false, 6000); return; }
+    } catch (e) { }
+  }
   const url = `/api/doc/${S.id}/imprimer?nom=${encodeURIComponent(nom)}&v=${S.version}`;
   // Le PDF final est chargé dans un cadre invisible ; la visionneuse du navigateur imprime
   // le document lui-même (pas la page web). Repli : ouverture dans un onglet.
@@ -1032,8 +1039,23 @@ $('#sig-taper-utiliser').onclick = () => {
   choisirSignature(recadrer(g2.getImageData(0, 0, c.width, c.height), 6), true);
 };
 // signatures enregistrées
-function lireSigs() { try { return JSON.parse(localStorage.getItem('bpo-pdf-signatures') || '[]'); } catch (e) { return []; } }
-function ecrireSigs(l) { try { localStorage.setItem('bpo-pdf-signatures', JSON.stringify(l.slice(0, 8))); } catch (e) { } }
+// Les signatures sont tenues en mémoire et recopiées côté Python dans
+// l'application bureau : le stockage du moteur est cloisonné par port, et
+// le port change à chaque lancement — elles y disparaissaient à tous les coups.
+let SIGS = [];
+function lireSigs() { return SIGS; }
+function ecrireSigs(l) {
+  SIGS = (l || []).slice(0, 8);
+  if (NATIF()) { window.pywebview.api.signatures_ecrire(SIGS).catch(() => { }); return; }
+  try { localStorage.setItem('bpo-pdf-signatures', JSON.stringify(SIGS)); } catch (e) { }
+}
+async function chargerSigs() {
+  try {
+    SIGS = NATIF() ? (await window.pywebview.api.signatures_lire()) || []
+                   : JSON.parse(localStorage.getItem('bpo-pdf-signatures') || '[]');
+  } catch (e) { SIGS = []; }
+  rendreSigs();
+}
 function rendreSigs() {
   const l = lireSigs(); const cont = $('#sig-liste'); cont.replaceChildren();
   if (!l.length) { cont.innerHTML = '<p class="note">Aucune signature enregistrée pour l\'instant.</p>'; return; }
@@ -1154,6 +1176,17 @@ document.addEventListener('keydown', (e) => {
 // Démarrage
 // =====================================================================
 padInit(); rendreSigs();
+// Sur Mac, les bulles d'aide et les touches affichées parlent de Ctrl : on
+// les traduit une fois pour toutes, c'est la première chose qu'on remarque.
+if (/Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent)) {
+  document.querySelectorAll('[title]').forEach((e) => {
+    if (/Ctrl/.test(e.title)) e.title = e.title.replace(/Ctrl\s*\+?\s*/g, '\u2318');
+  });
+  document.querySelectorAll('kbd').forEach((k) => {
+    if (/Ctrl/.test(k.textContent)) k.textContent = k.textContent.replace(/Ctrl\s*/g, '\u2318 ');
+  });
+}
+chargerSigs();
 // Application bureau : liens externes dans le navigateur du système, archive du source par boîte Enregistrer
 document.addEventListener('click', async (e) => {
   const a = e.target.closest('a[href]'); if (!a || !NATIF()) return;

@@ -5,3 +5,4 @@ _test/
 build/
 dist/
 *.spec
+version.txt

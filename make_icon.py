@@ -46,6 +46,9 @@ def main():
     ici = os.path.dirname(os.path.abspath(__file__))
     images = [dessiner(n) for n in TAILLES]
     images[0].save(os.path.join(ici, "icon-256.png"))
+    # macOS veut jusqu'à 1024 px (512@2x) : le dessin est refait à cette
+    # taille plutôt qu'agrandi, sinon les bords bavent.
+    dessiner(1024).save(os.path.join(ici, "icon-1024.png"))
     images[0].save(os.path.join(ici, "icon.ico"), format="ICO", sizes=[(n, n) for n in TAILLES],
                    append_images=images[1:])
     print("icon.ico :", TAILLES)

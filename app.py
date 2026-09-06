@@ -13,7 +13,10 @@ dialogue Ouvrir / Enregistrer sont celles du système : les fichiers sont lus et
 """
 from __future__ import annotations
 
+import json
 import os
+import shutil
+import subprocess
 import sys
 import threading
 import webbrowser
@@ -21,6 +24,51 @@ import webbrowser
 import webview
 
 import serveur
+
+# ---------------------------------------------------------------------
+# Le poste d'accueil : chaque système range les réglages ailleurs.
+# ---------------------------------------------------------------------
+
+
+def dossier_config() -> str:
+    if sys.platform == "darwin":
+        base = os.path.expanduser("~/Library/Application Support")
+    elif os.name == "nt":
+        base = os.environ.get("APPDATA") or os.path.expanduser("~")
+    else:
+        base = os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config")
+    d = os.path.join(base, "Editeur PDF BPO")
+    os.makedirs(d, exist_ok=True)
+    return d
+
+
+# ---------------------------------------------------------------------
+# WebView2 : sans lui, pywebview ne lève RIEN — il retombe en silence sur
+# Internet Explorer, que l'interface ne sait pas faire tourner, et son
+# avertissement se perd puisque l'exécutable n'a pas de console. On le
+# cherche donc AVANT d'ouvrir la fenêtre : lire le moteur choisi par
+# pywebview obligerait à importer le module, ce qui déclencherait déjà le
+# repli et une écriture dans le registre.
+# ---------------------------------------------------------------------
+_WV2 = "{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}"
+
+
+def version_webview2():
+    if os.name != "nt":
+        return "sans objet"
+    import winreg
+    cles = ((winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients" "\\" + _WV2),
+            (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\EdgeUpdate\Clients" "\\" + _WV2),
+            (winreg.HKEY_CURRENT_USER, r"SOFTWARE\Microsoft\EdgeUpdate\Clients" "\\" + _WV2))
+    for racine, chemin in cles:
+        try:
+            with winreg.OpenKey(racine, chemin) as k:
+                pv, _ = winreg.QueryValueEx(k, "pv")
+        except OSError:
+            continue
+        if pv and pv not in ("", "0.0.0.0"):
+            return pv
+    return None
 
 
 def _nom(chemin: str) -> str:
@@ -116,6 +164,60 @@ class Api:
         webbrowser.open(url)
         return True
 
+    # -- signatures ---------------------------------------------------
+    # Elles vivaient dans le localStorage du moteur. Deux causes les
+    # effaçaient à chaque lancement : pywebview démarre en mode privé, et
+    # le port est tiré au sort — or le stockage local est cloisonné par
+    # origine, donc par port. Les ranger côté Python règle les deux d'un
+    # coup, sans imposer un port fixe (que deux fenêtres se disputeraient)
+    # ni un profil de navigateur permanent sur le poste.
+    def _fichier_signatures(self) -> str:
+        return os.path.join(dossier_config(), "signatures.json")
+
+    def signatures_lire(self):
+        try:
+            with open(self._fichier_signatures(), encoding="utf-8") as f:
+                l = json.load(f)
+            return l if isinstance(l, list) else []
+        except Exception:
+            return []
+
+    def signatures_ecrire(self, liste):
+        try:
+            liste = [x for x in (liste or []) if isinstance(x, str)][:8]
+            chemin = self._fichier_signatures()
+            temp = chemin + ".tmp"
+            with open(temp, "w", encoding="utf-8") as f:
+                json.dump(liste, f)
+            os.replace(temp, chemin)      # écriture atomique : jamais de fichier à moitié écrit
+            return True
+        except Exception:
+            return False
+
+    # -- impression ---------------------------------------------------
+    # Sous Windows, la page imprime elle-même par un cadre invisible et
+    # cela fonctionne. Sous macOS, WKWebView rend window.print() inerte
+    # dans un cadre : on confie donc le PDF au système.
+    def imprimer(self, id_doc: str, nom: str):
+        if sys.platform != "darwin":
+            return "cadre"
+        d = serveur.doc_ou_404(id_doc)
+        with d.verrou:
+            octets = d.octets_export()
+        dossier = os.path.join(dossier_config(), "impression")
+        os.makedirs(dossier, exist_ok=True)
+        chemin = os.path.join(dossier, nom)
+        with open(chemin, "wb") as f:
+            f.write(octets)
+        # « Preview » est le nom du paquet sur le disque ; « Aperçu » n'est
+        # que son nom traduit et ne s'ouvrirait pas.
+        try:
+            if subprocess.run(["open", "-a", "Preview", chemin]).returncode != 0:
+                subprocess.run(["open", chemin])
+        except Exception:
+            subprocess.run(["open", chemin])
+        return "systeme"
+
 
 def ouvrir_chemins(chemins: list) -> dict:
     """Ouvre le premier fichier comme document, fusionne les suivants ; renvoie l'état."""
@@ -137,7 +239,21 @@ def ouvrir_chemins(chemins: list) -> dict:
     return d.etat()
 
 
+def nettoyer_impressions():
+    """Vide les PDF laissés par l'impression du tour précédent.
+
+    Au DÉMARRAGE et non à la sortie : sur macOS, quitter par Cmd+Q ne rend
+    jamais la main à Python — le code qui suit webview.start() ne s'exécute
+    pas, et un atexit non plus.
+    """
+    try:
+        shutil.rmtree(os.path.join(dossier_config(), "impression"), ignore_errors=True)
+    except Exception:
+        pass
+
+
 def main():
+    nettoyer_impressions()
     srv = serveur.creer_serveur(0)
     port = srv.server_address[1]
     threading.Thread(target=srv.serve_forever, daemon=True).start()
@@ -151,6 +267,22 @@ def main():
             url += "?doc=" + e["id"]
         except Exception as ex:  # fichier illisible : on ouvre quand même l'application
             print("Ouverture impossible :", ex, file=sys.stderr)
+
+    if os.name == "nt" and version_webview2() is None:
+        # Le mode navigateur est déjà complet dans l'interface : tout ce qui
+        # passe par pywebview y est derrière un test, et le serveur écoute
+        # déjà. On bascule donc, en le disant.
+        import ctypes
+        webbrowser.open(url)
+        ctypes.windll.user32.MessageBoxW(
+            0,
+            "Le composant Windows « WebView2 » n'est pas installé sur ce poste.\n\n"
+            "L'Éditeur PDF vient de s'ouvrir dans votre navigateur : vous pouvez\n"
+            "travailler normalement.\n\nAdresse : " + url + "\n\n"
+            "Fermez cette fenêtre pour arrêter l'Éditeur PDF.",
+            "Éditeur PDF BPO", 0x40 | 0x10000 | 0x40000)
+        srv.shutdown()
+        return
 
     try:
         webview.settings["ALLOW_DOWNLOADS"] = True
