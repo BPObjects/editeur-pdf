@@ -97,6 +97,16 @@ input,select{font:inherit}
 #editeur-ligne{position:absolute;border:1.5px solid var(--accent);background:#fff;padding:0 2px;outline:none;white-space:pre;color:#000;line-height:1;border-radius:2px;box-shadow:0 2px 12px rgba(0,0,0,.25);min-width:40px}
 #editeur-libre{position:absolute;border:1.5px dashed var(--accent);background:rgba(255,255,255,.85);padding:0 3px;outline:none;white-space:pre;line-height:1;min-width:60px;border-radius:2px}
 .aide-edit{position:absolute;background:#2a2b31;color:#fff;font-size:11px;padding:3px 7px;border-radius:5px;white-space:nowrap;pointer-events:none}
+#barre-texte{position:absolute;display:flex;align-items:center;gap:5px;background:#2a2b31;
+  padding:5px 7px;border-radius:7px;box-shadow:var(--ombre);white-space:nowrap;z-index:20}
+#barre-texte input[type=number]{width:52px;padding:3px 5px;border:1px solid #4a4b55;background:#1f2026;color:#fff;border-radius:5px;font-size:12px}
+#barre-texte select{padding:3px 5px;border:1px solid #4a4b55;background:#1f2026;color:#fff;border-radius:5px;font-size:12px;max-width:132px}
+#barre-texte input[type=color]{width:26px;height:24px;padding:1px;border:1px solid #4a4b55;background:#1f2026;border-radius:5px}
+#barre-texte .bst{width:24px;height:24px;border:1px solid #4a4b55;border-radius:5px;color:#d8d8de;font-size:12.5px;line-height:1;background:#1f2026}
+#barre-texte .bst:hover:not(:disabled){background:#33343d;color:#fff}
+#barre-texte .bst[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
+#barre-texte .bst:disabled{opacity:.35}
+#barre-texte .ind{color:#8a8c98;font-size:11px;margin-left:2px}
 #pose{position:absolute;border:1.5px solid var(--accent);background:rgba(232,89,12,.04);cursor:move;touch-action:none}
 #pose img{width:100%;height:100%;display:block;pointer-events:none}
 #pose .poignee{position:absolute;right:-7px;bottom:-7px;width:14px;height:14px;background:#fff;border:2px solid var(--accent);border-radius:3px;cursor:nwse-resize}
@@ -303,7 +313,8 @@ kbd{background:#eee;border:1px solid #ccc;border-radius:4px;padding:0 5px;font-s
     <section id="pan-texte" class="masque">
       <h3>Modifier le texte <button data-fermer title="Fermer">×</button></h3>
       <p class="note">Survolez une ligne, cliquez pour la retaper. <kbd>Entrée</kbd> valide, <kbd>Échap</kbd> annule. Vider la ligne la supprime.</p>
-      <p class="note">La police d'origine est réutilisée quand elle est embarquée avec tous les caractères voulus ; sinon une police standard proche (Helvetica, Times, Courier) la remplace.</p>
+      <p class="note">Une barre s'ouvre au-dessus de la ligne : <b>corps, police, gras, italique et couleur</b>. Tant que « Police d'origine » est choisie, celle du document est réutilisée si elle est embarquée avec tous les caractères voulus ; sinon une police standard proche la remplace.</p>
+      <p class="note">Le gras et l'italique n'ont de prise qu'une fois une police imposée : une police embarquée n'a pas de variante à offrir.</p>
       <p class="note" id="texte-stat"></p>
     </section>
   </aside>
@@ -701,7 +712,7 @@ function replacerCalque() {
     const [x0, y0, x1, y1] = l.bbox_aff;
     Object.assign(d.style, { left: x0 * S.zoom + 'px', top: y0 * S.zoom + 'px', width: (x1 - x0) * S.zoom + 'px', height: (y1 - y0) * S.zoom + 'px' });
   });
-  el.calque.querySelectorAll('#editeur-ligne, #editeur-libre, .aide-edit, #pose').forEach((e) => { if (e._placer) e._placer(); });
+  el.calque.querySelectorAll('#editeur-ligne, #editeur-libre, .aide-edit, #pose, #barre-texte').forEach((e) => { if (e._placer) e._placer(); });
 }
 
 // Change l'échelle en gardant sous le curseur (ou au centre) le point du document
@@ -847,7 +858,7 @@ document.querySelectorAll('#modes .btn').forEach(b => b.onclick = () => setMode(
 document.querySelectorAll('[data-fermer]').forEach(b => b.onclick = () => setMode('select'));
 
 function fermerEditeurs() {
-  document.querySelectorAll('#editeur-ligne,#editeur-libre,#pose,.aide-edit').forEach(x => x.remove());
+  document.querySelectorAll('#editeur-ligne,#editeur-libre,#pose,.aide-edit,#barre-texte').forEach(x => x.remove());
 }
 
 // ---- texte existant --------------------------------------------------
@@ -879,41 +890,129 @@ function familleCss(brut) {
   const gras = (f & 16) || /bold|semibold|black/.test(n); const ital = (f & 2) || /italic|oblique/.test(n);
   return { fam, gras, ital };
 }
+// Les douze polices standard du PDF, rangées par famille : c'est tout ce
+// qu'on peut IMPOSER. La police d'origine du document, elle, ne se décline pas
+// — on la garde telle quelle ou on la remplace.
+const FAMILLES = { he: ['helv', 'hebo', 'heit', 'hebi'], ti: ['tiro', 'tibo', 'tiit', 'tibi'], co: ['cour', 'cobo', 'coit', 'cobi'] };
+const CSS_FAMILLE = { he: 'Arial, Helvetica, sans-serif', ti: 'Georgia, "Times New Roman", serif', co: '"Courier New", monospace' };
+const codePolice = (f, gras, ital) => FAMILLES[f][(gras ? 1 : 0) + (ital ? 2 : 0)];
+
 function editerLigne(k) {
   fermerEditeurs();
   const l = S.lignes[k]; const b = l.brut; const [x0, y0, x1, y1] = l.bbox_aff;
-  const inp = document.createElement('input'); inp.id = 'editeur-ligne'; inp.type = 'text'; inp.value = l.texte;
-  const { fam, gras, ital } = familleCss(b);
+  const orig = familleCss(b);
   const c = b.color;
-  Object.assign(inp.style, {
-    fontFamily: fam, fontWeight: gras ? '700' : '400', fontStyle: ital ? 'italic' : 'normal',
-    color: `rgb(${c >> 16 & 255},${c >> 8 & 255},${c & 255})`,
-  });
-  const aide = document.createElement('div'); aide.className = 'aide-edit'; aide.textContent = 'Entrée : valider · Échap : annuler · vide : supprimer';
+  const couleurOrig = '#' + [c >> 16 & 255, c >> 8 & 255, c & 255].map((v) => v.toString(16).padStart(2, '0')).join('');
+
+  // L'état de style en cours de réglage. `fam` vide = on garde la police du
+  // document ; sinon on impose une famille standard.
+  const st = { taille: b.size, fam: '', gras: orig.gras, ital: orig.ital, couleur: couleurOrig };
+
+  const inp = document.createElement('input'); inp.id = 'editeur-ligne'; inp.type = 'text'; inp.value = l.texte;
+  const barre = document.createElement('div'); barre.id = 'barre-texte';
+  barre.innerHTML = `
+    <input type="number" data-r="taille" min="2" max="400" step="0.5" title="Corps du texte, en points">
+    <select data-r="police" title="Police de caractères">
+      <option value="">Police d'origine</option>
+      <option value="he">Helvetica</option>
+      <option value="ti">Times</option>
+      <option value="co">Courier</option>
+    </select>
+    <button class="bst" data-r="gras" title="Gras" style="font-weight:700">G</button>
+    <button class="bst" data-r="ital" title="Italique" style="font-style:italic">I</button>
+    <input type="color" data-r="couleur" title="Couleur du texte">
+    <span class="ind">Entrée : valider</span>`;
+  const q = (r) => barre.querySelector(`[data-r="${r}"]`);
+
+  const peindre = () => {
+    q('taille').value = Math.round(st.taille * 10) / 10;
+    q('police').value = st.fam;
+    q('couleur').value = st.couleur;
+    // Sans famille imposée, le gras et l'italique n'ont pas de prise : la
+    // police embarquée du document n'a pas de variante à offrir.
+    for (const r of ['gras', 'ital']) {
+      q(r).disabled = !st.fam;
+      q(r).setAttribute('aria-pressed', String(!!st[r]));
+    }
+    Object.assign(inp.style, {
+      fontFamily: st.fam ? CSS_FAMILLE[st.fam] : orig.fam,
+      fontWeight: st.gras ? '700' : '400',
+      fontStyle: st.ital ? 'italic' : 'normal',
+      color: st.couleur,
+    });
+    inp._placer();
+  };
+
   // positions recalculées depuis les coordonnées du document : le zoom peut changer
   // pendant la saisie sans déplacer ni fermer l'éditeur
   inp._placer = () => Object.assign(inp.style, {
-    left: (x0 * S.zoom - 3) + 'px', top: (y0 * S.zoom - 2) + 'px', height: ((y1 - y0) * S.zoom + 4) + 'px',
-    width: Math.max((x1 - x0) * S.zoom + 40, 120) + 'px', fontSize: (b.size * S.zoom) + 'px',
+    left: (x0 * S.zoom - 3) + 'px', top: (y0 * S.zoom - 2) + 'px',
+    height: (Math.max(y1 - y0, st.taille * 1.2) * S.zoom + 4) + 'px',
+    width: Math.max((x1 - x0) * S.zoom + 40, 160) + 'px', fontSize: (st.taille * S.zoom) + 'px',
   });
-  aide._placer = () => { aide.style.left = x0 * S.zoom + 'px'; aide.style.top = (y0 * S.zoom - 26) + 'px'; };
-  inp._placer(); aide._placer();
+  barre._placer = () => {
+    const haut = y0 * S.zoom - 40;
+    barre.style.left = Math.max(0, x0 * S.zoom) + 'px';
+    barre.style.top = (haut < 2 ? y1 * S.zoom + 8 : haut) + 'px';
+  };
+
   let fini = false;
   const valider = async () => {
     if (fini) return; fini = true;
     const nouveau = inp.value;
-    inp.remove(); aide.remove();
-    if (nouveau === l.texte) return;
-    await op({ type: 'texte', page: S.page, brut: b, texte: nouveau });
-    toast(nouveau.trim() ? 'Texte modifié.' : 'Ligne supprimée.');
+    const style = {};
+    if (Math.abs(st.taille - b.size) > 0.05) style.taille = st.taille;
+    if (st.fam) style.police = codePolice(st.fam, st.gras, st.ital);
+    if (st.couleur.toLowerCase() !== couleurOrig.toLowerCase()) style.couleur = st.couleur;
+    inp.remove(); barre.remove();
+    if (nouveau === l.texte && !Object.keys(style).length) return;
+    const e = await op({ type: 'texte', page: S.page, brut: b, texte: nouveau, style });
+    if (e && e.texte && e.texte.deborde)
+      toast('Texte modifié, mais il dépasse du bord de la page : réduisez le corps pour tout voir.', true, 6000);
+    else toast(nouveau.trim() ? 'Texte modifié.' : 'Ligne supprimée.');
   };
+
+  // Cliquer dans la barre fait perdre le focus au champ : sans cette garde,
+  // le simple fait de changer le corps validerait la ligne.
+  inp.onblur = () => setTimeout(() => {
+    if (fini) return;
+    const a = document.activeElement;
+    if (a && a.closest && a.closest('#barre-texte')) return;
+    valider();
+  }, 80);
   inp.onkeydown = (e) => {
     e.stopPropagation();
     if (e.key === 'Enter') valider();
-    if (e.key === 'Escape') { fini = true; inp.remove(); aide.remove(); }
+    if (e.key === 'Escape') { fini = true; inp.remove(); barre.remove(); }
   };
-  inp.onblur = () => setTimeout(valider, 80);
-  el.calque.appendChild(aide); el.calque.appendChild(inp);
+
+  barre.addEventListener('keydown', (e) => {
+    e.stopPropagation();
+    if (e.key === 'Enter') { e.preventDefault(); valider(); }
+    if (e.key === 'Escape') { fini = true; inp.remove(); barre.remove(); }
+  });
+  barre.addEventListener('input', (e) => {
+    const r = e.target.dataset.r;
+    if (r === 'taille') { const v = parseFloat(e.target.value); if (isFinite(v)) { st.taille = Math.max(2, Math.min(400, v)); peindre(); } }
+    if (r === 'couleur') { st.couleur = e.target.value; peindre(); }
+  });
+  barre.addEventListener('change', (e) => {
+    if (e.target.dataset.r === 'police') {
+      st.fam = e.target.value;
+      if (!st.fam) { st.gras = orig.gras; st.ital = orig.ital; }
+      peindre(); inp.focus();
+    }
+  });
+  for (const r of ['gras', 'ital']) {
+    const bt = q(r);
+    // On empêche le bouton de prendre le focus : le champ le garde, et la
+    // frappe continue sans détour.
+    bt.addEventListener('pointerdown', (e) => e.preventDefault());
+    bt.addEventListener('click', () => { st[r] = !st[r]; peindre(); inp.focus(); });
+  }
+
+  el.calque.appendChild(barre); el.calque.appendChild(inp);
+  peindre(); barre._placer();
   inp.focus(); inp.select();
 }
 

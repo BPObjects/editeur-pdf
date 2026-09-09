@@ -254,17 +254,36 @@ class Document:
             haut, bas = c - 0.3, c + 0.3
         return pymupdf.Rect(x0, haut, x1, bas)
 
-    def remplacer_texte(self, n: int, brut: dict, nouveau: str):
+    def remplacer_texte(self, n: int, brut: dict, nouveau: str, style: dict | None = None):
+        """Réécrit une ligne. `style` impose au besoin le corps, la police et la
+        couleur ; ce qu'il ne dit pas est repris de la ligne d'origine.
+
+        La ZONE EFFACÉE, elle, se calcule toujours sur l'ancienne ligne : c'est
+        elle qu'on retire, quelle que soit la taille de ce qu'on écrit ensuite.
+        """
+        style = style or {}
         page = self.doc[n]
         zone = self._zone_redaction(page, brut)
         page.add_redact_annot(zone, fill=False)
         page.apply_redactions(images=pymupdf.PDF_REDACT_IMAGE_NONE,
                               graphics=pymupdf.PDF_REDACT_LINE_ART_NONE)
         if not nouveau.strip():
-            return
-        c = int(brut.get("color", 0))
-        couleur = ((c >> 16 & 255) / 255, (c >> 8 & 255) / 255, (c & 255) / 255)
-        police = self._police_texte(page, brut, nouveau)
+            return {"deborde": False}
+        if style.get("couleur"):
+            couleur = _hex_rgb(style["couleur"])
+        else:
+            c = int(brut.get("color", 0))
+            couleur = ((c >> 16 & 255) / 255, (c >> 8 & 255) / 255, (c & 255) / 255)
+        try:
+            taille = float(style.get("taille") or brut["size"])
+        except (TypeError, ValueError):
+            taille = float(brut["size"])
+        taille = max(1.0, min(400.0, taille))
+        # Une police imposée est forcément l'une des standard : la police
+        # d'origine du document ne se décline pas en gras ou en italique, on ne
+        # peut que la garder telle quelle.
+        police = (self._police_std(page, style["police"]) if style.get("police")
+                  else self._police_texte(page, brut, nouveau))
         dx, dy = brut.get("dir", [1, 0])
         rot = 0
         if abs(dx) < 0.5:
@@ -273,11 +292,18 @@ class Document:
             rot = 180
         origine = pymupdf.Point(brut["origin"])
         try:
-            page.insert_text(origine, nouveau, fontsize=brut["size"], fontname=police,
+            page.insert_text(origine, nouveau, fontsize=taille, fontname=police,
                              color=couleur, rotate=rot)
         except Exception:
-            page.insert_text(origine, nouveau, fontsize=brut["size"], fontname=self._police_std(page, "helv"),
+            page.insert_text(origine, nouveau, fontsize=taille, fontname=self._police_std(page, "helv"),
                              color=couleur, rotate=rot)
+        # `insert_text` rend toujours 1 : il ne signale JAMAIS un dépassement, il
+        # écrit et la page rogne. Mesuré : à 200 pt on ne relit plus que « Vos pr »
+        # d'un « Vos produits », à 400 pt « Vos ». Rien n'est perdu — le texte est
+        # là, hors du papier — mais l'utilisateur doit le savoir. On interroge
+        # donc le résultat plutôt que de le prédire.
+        serre = lambda t: "".join(t.split())
+        return {"deborde": bool(nouveau.strip()) and serre(nouveau) not in serre(page.get_text())}
 
     def texte_libre(self, n: int, x: float, y: float, texte: str, taille: float, couleur_hex: str, police: str = "helv"):
         """Ajoute du texte à la position (x, y) = coin bas-gauche dans l'espace affiché."""
@@ -712,7 +738,8 @@ class Handler(BaseHTTPRequestHandler):
                 elif t == "ordre":
                     d.reordonner(op["ordre"])
                 elif t == "texte":
-                    d.remplacer_texte(int(op["page"]), op["brut"], op.get("texte", ""))
+                    extra["texte"] = d.remplacer_texte(int(op["page"]), op["brut"],
+                                                       op.get("texte", ""), op.get("style"))
                 elif t == "texte_libre":
                     d.texte_libre(int(op["page"]), float(op["x"]), float(op["y"]), op["texte"],
                                   float(op.get("taille", 12)), op.get("couleur", "#000000"), op.get("police", "helv"))
