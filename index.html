@@ -85,13 +85,19 @@ input,select{font:inherit}
 #menu-zoom button.actif{color:var(--accent);font-weight:600}
 #menu-zoom hr{border:0;border-top:1px solid var(--bord);margin:5px 2px}
 #menu-zoom kbd{background:#f0f0f3;border:1px solid #dcdce2;color:#777}
-#feuille.mode-select #calque{cursor:grab}
-#zone-vue{flex:1;overflow:auto;position:relative}
-#feuille{position:relative;margin:24px auto;background:#fff;box-shadow:var(--ombre);width:0;height:0}
-#feuille img{display:block;width:100%;height:100%;user-select:none;-webkit-user-drag:none}
-#calque{position:absolute;inset:0}
-#feuille.mode-texte #calque{cursor:text}
-#feuille.mode-libre #calque,#feuille.mode-signature #calque{cursor:crosshair}
+
+#zone-vue{flex:1;overflow:auto;position:relative;scroll-behavior:auto}
+#pile{display:flex;flex-direction:column;align-items:center;gap:18px;padding:24px 0;min-height:100%}
+.page{position:relative;background:#fff;box-shadow:var(--ombre);flex:none}
+.page img{display:block;width:100%;height:100%;user-select:none;-webkit-user-drag:none}
+/* Une page pas encore rendue montre son numéro plutôt qu'un rectangle muet. */
+.page::before{content:attr(data-n);position:absolute;inset:0;display:flex;align-items:center;
+  justify-content:center;color:#c8c9d0;font-size:15px;letter-spacing:.1em}
+.page.chargee::before{content:none}
+.calque{position:absolute;inset:0}
+#pile.mode-select .calque{cursor:grab}
+#pile.mode-texte .calque{cursor:text}
+#pile.mode-libre .calque,#pile.mode-signature .calque{cursor:crosshair}
 .ligne{position:absolute;border-radius:2px;outline:1.5px solid transparent;transition:outline-color .1s,background .1s}
 .ligne:hover{outline-color:rgba(232,89,12,.9);background:rgba(232,89,12,.08)}
 #editeur-ligne{position:absolute;border:1.5px solid var(--accent);background:#fff;padding:0 2px;outline:none;white-space:pre;color:#000;line-height:1;border-radius:2px;box-shadow:0 2px 12px rgba(0,0,0,.25);min-width:40px}
@@ -238,10 +244,7 @@ kbd{background:#eee;border:1px solid #ccc;border-radius:4px;padding:0 5px;font-s
       <button id="z-plus" title="Zoom avant (Ctrl +)">+</button>
     </div>
     <div id="zone-vue">
-      <div id="feuille">
-        <img id="image-page" alt="">
-        <div id="calque"></div>
-      </div>
+      <div id="pile"></div>
     </div>
   </main>
 
@@ -367,10 +370,11 @@ const S = {
 const DPR = Math.min(window.devicePixelRatio || 1, 2);
 const $ = (s) => document.querySelector(s);
 const el = {
-  nom: $('#nom'), taille: $('#taille'), vignettes: $('#vignettes'), feuille: $('#feuille'),
-  img: $('#image-page'), calque: $('#calque'), zone: $('#zone-vue'), droit: $('#droit'),
+  nom: $('#nom'), taille: $('#taille'), vignettes: $('#vignettes'),
+  zone: $('#zone-vue'), droit: $('#droit'),
+  // feuille / calque / img sont posés plus bas en accesseurs : ils désignent la page courante
   occupe: $('#occupe'), accueil: $('#accueil'), num: $('#v-num'), total: $('#v-total'), zval: $('#z-val'),
-  menuZoom: $('#menu-zoom'),
+  menuZoom: $('#menu-zoom'), pile: $('#pile'),
 };
 
 // =====================================================================
@@ -649,53 +653,160 @@ async function enregistrer() {
 // =====================================================================
 // Vue de la page
 // =====================================================================
-function allerPage(i, rafraichir = true) {
-  i = Math.max(0, Math.min(S.pages.length - 1, i));
-  const chg = i !== S.page; S.page = i;
-  el.num.value = i + 1;
-  if (chg || rafraichir) { rendrePage(); }
-  if (chg) rafraichirSelVignettes();
+// =====================================================================
+// La pile de pages
+// ---------------------------------------------------------------------
+// Toutes les pages sont montées d'un coup — un cadre vide coûte trois nœuds —
+// mais SEULES celles qui approchent de la vue portent une image. Sur un dossier
+// de 61 planches A3, garder les 61 rendus en mémoire coûterait des centaines de
+// mégaoctets pour rien.
+// =====================================================================
+const VIDE = document.createElement('div');
+const pageEl = (i) => el.pile.querySelector('.page[data-i="' + i + '"]');
+// `el.feuille`, `el.calque` et `el.img` désignent la PAGE COURANTE. Les rendre
+// calculés évite de réécrire les vingt-trois endroits qui s'en servent — mais
+// impose de poser les écouteurs sur la pile, qui elle ne change pas.
+Object.defineProperties(el, {
+  feuille: { get: () => pageEl(S.page) || VIDE },
+  calque: { get: () => { const d = pageEl(S.page); return d ? d.querySelector('.calque') : VIDE; } },
+  img: { get: () => { const d = pageEl(S.page); return d ? d.querySelector('img') : VIDE; } },
+});
+
+function construirePile() {
+  const frag = document.createDocumentFragment();
+  S.pages.forEach((p, i) => {
+    const d = document.createElement('div');
+    d.className = 'page'; d.dataset.i = i; d.dataset.n = 'Page ' + (i + 1);
+    d.style.width = (p.w * S.zoom) + 'px';
+    d.style.height = (p.h * S.zoom) + 'px';
+    const im = document.createElement('img'); im.alt = 'Page ' + (i + 1); im.draggable = false;
+    const c = document.createElement('div'); c.className = 'calque';
+    d.append(im, c);
+    frag.appendChild(d);
+  });
+  el.pile.replaceChildren(frag);
+  el.pile.className = 'mode-' + S.mode;
 }
-// La feuille est un simple cadre CSS : lui donner sa taille suffit à voir le zoom
-// tout de suite (le navigateur ré-échelonne l'image en place). L'image nette est
-// redemandée au serveur seulement quand la rafale de zoom s'arrête.
+
 function poserFeuille() {
-  const p = S.pages[S.page]; if (!p) return;
-  el.feuille.style.width = (p.w * S.zoom) + 'px';
-  el.feuille.style.height = (p.h * S.zoom) + 'px';
+  if (!S.pages.length) return;
+  el.pile.querySelectorAll('.page').forEach((d) => {
+    const p = S.pages[+d.dataset.i]; if (!p) return;
+    d.style.width = (p.w * S.zoom) + 'px';
+    d.style.height = (p.h * S.zoom) + 'px';
+  });
   el.zval.textContent = Math.round(S.zoom * 100) + ' %';
   marquerNiveauActif();
 }
+
 // Rendu demandé au serveur : plafonné, sinon une page immense à fort zoom
 // fabriquerait une image de plusieurs dizaines de millions de pixels.
 const PIXELS_MAX = 3600;
-function zoomRendu() {
-  const p = S.pages[S.page]; if (!p) return S.zoom;
+function zoomRendu(i) {
+  const p = S.pages[i]; if (!p) return S.zoom;
   const brut = S.zoom * DPR;
   const k = Math.min(1, PIXELS_MAX / (p.w * brut), PIXELS_MAX / (p.h * brut));
   return Math.max(0.05, Math.round(brut * k * 100) / 100);
 }
+function chargerImage(d, i) {
+  const src = urlPage(i, zoomRendu(i));
+  if (d.dataset.src === src) return;
+  d.dataset.src = src;
+  const im = d.querySelector('img');
+  const pre = new Image();
+  pre.onload = () => {
+    if (d.dataset.src !== src) return;      // le zoom a rebougé entre-temps
+    im.src = src; d.classList.add('chargee');
+  };
+  pre.src = src;
+}
+function libererImage(d) {
+  if (!d.dataset.src) return;
+  delete d.dataset.src;
+  d.querySelector('img').removeAttribute('src');
+  d.classList.remove('chargee');
+}
+
+// Une seule passe fait tout : charger ce qui approche, libérer ce qui s'éloigne,
+// et désigner la page courante — celle qui couvre le milieu de la vue.
 let minuteurImage = null;
+function majVisibles() {
+  if (!S.pages.length) return;
+  const zone = el.zone;
+  const haut = zone.scrollTop, hv = zone.clientHeight, bas = haut + hv;
+  const centre = haut + hv / 2, marge = Math.max(hv, 400);
+  let courante = -1, meilleure = 0;
+  el.pile.querySelectorAll('.page').forEach((d) => {
+    const i = +d.dataset.i, y0 = d.offsetTop, y1 = y0 + d.offsetHeight;
+    if (y1 > haut - marge && y0 < bas + marge) chargerImage(d, i); else libererImage(d);
+    if (y0 <= centre && y1 >= centre) courante = i;
+    else {
+      const vu = Math.min(y1, bas) - Math.max(y0, haut);
+      if (courante < 0 && vu > meilleure) { meilleure = vu; courante = i; }
+    }
+  });
+  if (courante >= 0 && courante !== S.page) {
+    S.page = courante;
+    el.num.value = courante + 1;
+    rafraichirSelVignettes();
+    if (S.mode === 'texte') chargerLignes();
+  }
+}
 function demanderImage(delai) {
   clearTimeout(minuteurImage);
-  const lancer = () => {
-    if (!S.pages[S.page]) return;
-    const src = urlPage(S.page, zoomRendu());
-    if (el.img.dataset.src === src) return;
-    el.img.dataset.src = src;
-    const pre = new Image();
-    pre.onload = () => { if (el.img.dataset.src === src) el.img.src = src; };
-    pre.src = src;
-  };
-  if (delai) minuteurImage = setTimeout(lancer, delai); else lancer();
+  if (delai) minuteurImage = setTimeout(majVisibles, delai); else majVisibles();
 }
+// Étranglement par le TEMPS et non par requestAnimationFrame : rAF ne bat pas
+// quand la fenêtre est masquée ou réduite, et le défilement resterait alors
+// sans effet — la page courante ne suivrait plus.
+let dernierMaj = 0, minuteurDefil = null;
+el.zone.addEventListener('scroll', () => {
+  const t = performance.now();
+  clearTimeout(minuteurDefil);
+  if (t - dernierMaj > 90) { dernierMaj = t; majVisibles(); }
+  else minuteurDefil = setTimeout(() => { dernierMaj = performance.now(); majVisibles(); }, 90);
+}, { passive: true });
+
+// Amène une page sous les yeux. C'est ce que fait désormais un clic de vignette
+// ou le champ du numéro : on ne remplace plus la page affichée, on s'y rend.
+function allerPage(i, rafraichir = true) {
+  i = Math.max(0, Math.min(S.pages.length - 1, i));
+  const d = pageEl(i);
+  if (!d) return;
+  S.page = i; el.num.value = i + 1;
+  el.zone.scrollTop = d.offsetTop - 24;
+  majVisibles();
+  rafraichirSelVignettes();
+  if (rafraichir && S.mode === 'texte') chargerLignes();
+}
+
+// Empreinte de la pile : le nombre de pages et leurs dimensions. Une retouche
+// de texte ne la change pas — inutile alors de tout remonter, et surtout de
+// perdre sa place dans le document.
+const empreintePile = () => S.pages.map((p) => p.w + 'x' + p.h).join('|');
+let pileMontee = '';
+
 function rendrePage() {
-  const p = S.pages[S.page]; if (!p) return;
-  el.num.value = S.page + 1;
-  poserFeuille();
-  demanderImage(0);
+  if (!S.pages.length) { el.pile.replaceChildren(); pileMontee = ''; return; }
+  const emp = empreintePile();
   fermerEditeurs();
-  el.calque.replaceChildren();
+  if (emp !== pileMontee) {
+    // La pile change : pages ajoutées, retirées, tournées ou réordonnées.
+    const garde = Math.min(S.page, S.pages.length - 1);
+    construirePile();
+    pileMontee = emp;
+    S.page = garde; el.num.value = garde + 1;
+    poserFeuille();
+    const d = pageEl(garde);
+    if (d) el.zone.scrollTop = d.offsetTop - 24;
+  } else {
+    // Même pile, contenu retouché : les images ont une clé neuve, on les
+    // redemande sans bouger d'un pixel.
+    el.pile.querySelectorAll('.page').forEach((d) => { delete d.dataset.src; });
+    poserFeuille();
+  }
+  el.pile.querySelectorAll('.calque').forEach((c) => c.replaceChildren());
+  majVisibles();
   if (S.mode === 'texte') chargerLignes();
 }
 $('#v-prec').onclick = () => allerPage(S.page - 1);
@@ -753,8 +864,13 @@ function ajusterZoom(mode) {
     z = Math.min((zone.clientWidth - MARGE) / p.w, (zone.clientHeight - MARGE) / p.h);
   }
   S.zoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, z));
-  poserFeuille(); replacerCalque(); demanderImage(0);
-  zone.scrollLeft = 0; if (S.zoomMode === 'page') zone.scrollTop = 0;
+  poserFeuille(); replacerCalque();
+  // On ne remonte plus en haut du document : on garde sous les yeux la page
+  // qu'on regardait, sinon ajuster ferait perdre sa place dans un long dossier.
+  const d = pageEl(S.page);
+  zone.scrollLeft = 0;
+  if (d) zone.scrollTop = d.offsetTop - 24;
+  majVisibles();
   return true;
 }
 function zoomFixe(valeur, centre) { S.zoomMode = 'fixe'; poserZoom(valeur, centre); }
@@ -845,7 +961,7 @@ window.addEventListener('resize', surTaille);
 function setMode(m) {
   S.mode = m;
   document.querySelectorAll('#modes .btn').forEach(b => b.classList.toggle('actif', b.dataset.mode === m));
-  el.feuille.className = 'mode-' + m;
+  el.pile.className = 'mode-' + m;
   fermerEditeurs(); el.calque.replaceChildren();
   document.querySelectorAll('#droit section').forEach(s => s.classList.add('masque'));
   const pan = { texte: '#pan-texte', libre: '#pan-libre', signature: '#pan-signature' }[m];
@@ -874,7 +990,7 @@ async function chargerLignes() {
   } catch (err) { toast(err.message, true); }
 }
 function dessinerLignes() {
-  el.calque.replaceChildren();
+  el.pile.querySelectorAll('.calque').forEach((c) => c.replaceChildren());
   S.lignes.forEach((l, k) => {
     const d = document.createElement('div'); d.className = 'ligne'; d.dataset.k = k;
     const [x0, y0, x1, y1] = l.bbox_aff;
@@ -899,6 +1015,7 @@ const codePolice = (f, gras, ital) => FAMILLES[f][(gras ? 1 : 0) + (ital ? 2 : 0
 
 function editerLigne(k) {
   fermerEditeurs();
+  const pageEdit = S.page;   // retenue : le défilement peut changer la page courante pendant la saisie
   const l = S.lignes[k]; const b = l.brut; const [x0, y0, x1, y1] = l.bbox_aff;
   const orig = familleCss(b);
   const c = b.color;
@@ -966,7 +1083,7 @@ function editerLigne(k) {
     if (st.couleur.toLowerCase() !== couleurOrig.toLowerCase()) style.couleur = st.couleur;
     inp.remove(); barre.remove();
     if (nouveau === l.texte && !Object.keys(style).length) return;
-    const e = await op({ type: 'texte', page: S.page, brut: b, texte: nouveau, style });
+    const e = await op({ type: 'texte', page: pageEdit, brut: b, texte: nouveau, style });
     if (e && e.texte && e.texte.deborde)
       toast('Texte modifié, mais il dépasse du bord de la page : réduisez le corps pour tout voir.', true, 6000);
     else toast(nouveau.trim() ? 'Texte modifié.' : 'Ligne supprimée.');
@@ -1017,16 +1134,22 @@ function editerLigne(k) {
 }
 
 // ---- texte libre ------------------------------------------------------
-el.calque.addEventListener('dragstart', (e) => e.preventDefault()); // jamais de glisser natif d'image
-el.calque.addEventListener('click', (e) => {
-  if (e.target !== el.calque) return;
-  const r = el.calque.getBoundingClientRect();
+// Les écouteurs vont sur la PILE : `el.calque` change de page en page, un
+// addEventListener posé dessus au démarrage n'écouterait qu'une seule page.
+el.pile.addEventListener('dragstart', (e) => e.preventDefault()); // jamais de glisser natif d'image
+el.pile.addEventListener('click', (e) => {
+  if (!e.target.classList.contains('calque')) return;
+  // On agit sur la page CLIQUÉE, même si le défilement en désignait une autre.
+  const d = e.target.closest('.page');
+  if (d) { const i = +d.dataset.i; if (i !== S.page) { S.page = i; el.num.value = i + 1; rafraichirSelVignettes(); } }
+  const r = e.target.getBoundingClientRect();
   const px = e.clientX - r.left, py = e.clientY - r.top;
   if (S.mode === 'libre') ouvrirTexteLibre(px, py);
   else if (S.mode === 'signature') poserSignature(px, py);
 });
 function ouvrirTexteLibre(px, py) {
   fermerEditeurs();
+  const pageEdit = S.page;
   const taille = +$('#lib-taille').value || 12, couleur = $('#lib-couleur').value, police = $('#lib-police').value;
   const fam = police.startsWith('ti') ? 'Georgia, "Times New Roman", serif' : police.startsWith('co') ? '"Courier New", monospace' : 'Arial, Helvetica, sans-serif';
   const inp = document.createElement('input'); inp.id = 'editeur-libre'; inp.type = 'text'; inp.placeholder = 'Votre texte…';
@@ -1042,7 +1165,7 @@ function ouvrirTexteLibre(px, py) {
   const valider = async () => {
     if (fini) return; fini = true; const t = inp.value; inp.remove();
     if (!t.trim()) return;
-    await op({ type: 'texte_libre', page: S.page, x: dx, y: dy, texte: t, taille, couleur, police });
+    await op({ type: 'texte_libre', page: pageEdit, x: dx, y: dy, texte: t, taille, couleur, police });
     toast('Texte ajouté.');
   };
   inp.onkeydown = (e) => { e.stopPropagation(); if (e.key === 'Enter') valider(); if (e.key === 'Escape') { fini = true; inp.remove(); } };
@@ -1181,6 +1304,7 @@ document.querySelectorAll('#sig-onglets button').forEach(b => b.onclick = () => 
 function poserSignature(px, py) {
   if (!S.sig) { toast('Choisissez d\'abord une signature dans le panneau de droite.', true); return; }
   fermerEditeurs();
+  const pageEdit = S.page;
   const im = new Image();
   im.onload = () => {
     const ratio = im.height / im.width;
@@ -1210,7 +1334,7 @@ function poserSignature(px, py) {
     pose.addEventListener('pointerup', () => { d0 = null; });
     pose.querySelector('.ok').onclick = async () => {
       pose.remove();
-      await op({ type: 'image', page: S.page, rect: [x, y, x + wPt, y + hPt], png: S.sig });
+      await op({ type: 'image', page: pageEdit, rect: [x, y, x + wPt, y + hPt], png: S.sig });
       toast('Signature apposée.');
     };
     pose.querySelector('.non').onclick = () => pose.remove();
