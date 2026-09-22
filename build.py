@@ -14,7 +14,7 @@ import subprocess
 import sys
 
 ICI = os.path.dirname(os.path.abspath(__file__))
-DONNEES = ("index.html", "serveur.py", "app.py", "make_icon.py", "build.py", "build-macos.py",
+DONNEES = ("index.html", "serveur.py", "app.py", "make_icon.py", "build.py", "build-macos.py", "installer.py",
            "README.md", "LICENSE", "THIRD-PARTY.md", "requirements.txt", "requirements-app.txt",
            "requirements-build.txt", "Editeur PDF.bat", "Editeur PDF (navigateur).bat")
 

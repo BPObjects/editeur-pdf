@@ -21,6 +21,30 @@ Un PDF peut aussi être glissé sur l'icône de l'application, ou ouvert par
 sur http://localhost:8790/. Utile sur une machine sans WebView2, ou pour
 travailler depuis un autre poste du réseau local.
 
+## Installer sur son poste
+
+`python installer.py` pose l'application dans `%LOCALAPPDATA%\Programs\Editeur PDF BPO`,
+crée les raccourcis Bureau et menu Démarrer, et l'enregistre pour qu'elle
+apparaisse dans « Ouvrir avec » et dans les Paramètres de Windows.
+`--etat` dit ce qui est posé sans rien écrire, `--desinstaller` retire tout,
+`--diffuser` recopie en plus le build dans le dossier de diffusion de l'agence.
+
+**Pourquoi un emplacement fixe.** L'exécutable était lancé depuis là où il avait
+été déposé — Dropbox, la sortie de build, la copie d'un collègue — et Windows
+enregistrait ce chemin-là. On se retrouvait avec quatre exemplaires de dates
+différentes et un double-clic qui ouvrait le plus ancien. Règle à tenir :
+**on lance l'application par son raccourci, jamais par un exe trouvé dans
+Dropbox** — Windows n'a qu'une entrée de registre pour tous les exemplaires qui
+portent le même nom de fichier.
+
+**Ce que l'installateur ne fait pas.** Il ne se désigne pas « application par
+défaut » pour le .pdf. Windows protège ce choix par un hachage lié au compte :
+le forger est ce que fait un logiciel indésirable, et Windows le défait. Pour
+désigner l'éditeur par défaut : clic droit sur un PDF → *Ouvrir avec* →
+*Choisir une autre application* → **Éditeur PDF BPO** → *Toujours*. Si le bouton
+reste sans effet, passer par *Paramètres* → *Applications* → *Applications par
+défaut*, y taper `.pdf`, et choisir l'éditeur.
+
 ## Exécutable Windows
 
 `python build.py` produit `dist/Editeur PDF BPO.exe` : un seul fichier d'environ
@@ -80,6 +104,7 @@ font la même chose hors champ de saisie.
   couvert (—, €, œ, →…) s'écrit, et l'export ne garde que les glyphes utilisés.
 - `index.html` — interface, un seul fichier, sans dépendance.
 - `make_icon.py`, `build.py` — icône et construction de l'exécutable.
+- `installer.py` — installation pour l'utilisateur courant, raccourcis, registre.
 - `requirements.txt` / `requirements-app.txt` / `requirements-build.txt` —
   moteur seul / application bureau / outils de construction.
 - `LICENSE`, `THIRD-PARTY.md` — licence et composants tiers.

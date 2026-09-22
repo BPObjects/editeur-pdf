@@ -760,7 +760,8 @@ class Handler(BaseHTTPRequestHandler):
         return e
 
 
-FICHIERS_SOURCE = ("serveur.py", "app.py", "make_icon.py", "build.py", "index.html", "README.md", "LICENSE",
+FICHIERS_SOURCE = ("serveur.py", "app.py", "make_icon.py", "build.py", "installer.py", "build-macos.py",
+                   "index.html", "README.md", "LICENSE",
                    "THIRD-PARTY.md", "requirements.txt", "requirements-app.txt", "requirements-build.txt",
                    "Editeur PDF.bat", "Editeur PDF (navigateur).bat")
 
