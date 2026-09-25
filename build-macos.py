@@ -60,15 +60,21 @@ def controles():
 
 
 def icone_depuis_png():
-    """Fabrique icon.icns depuis icon-256.png si l'outil iconutil est là.
+    """Fabrique icon.icns depuis le plus grand PNG disponible, si iconutil est là.
 
-    macOS veut un jeu complet, Retina comprise. On part du PNG le plus grand
-    dont on dispose ; à défaut de 1024 px, l'icône sera un peu molle sur les
-    grandes tailles — mieux vaut cela que pas d'icône.
+    macOS veut un jeu complet, Retina comprise : la plus grande vignette
+    demandée est 512@2x, donc 1024 px. Partir du 256 px obligerait sips à
+    agrandir, et l'icône serait molle sur le Dock d'un écran Retina — d'où
+    l'ordre de préférence ci-dessous.
     """
-    src = os.path.join(ICI, "icon-256.png")
-    if not os.path.isfile(src) or not shutil.which("iconutil"):
+    src = None
+    for candidat in ("icon-1024.png", "icon-512.png", "icon-256.png"):
+        if os.path.isfile(os.path.join(ICI, candidat)):
+            src = os.path.join(ICI, candidat)
+            break
+    if src is None or not shutil.which("iconutil"):
         return False
+    print("  Icône     : engendrée depuis %s" % os.path.basename(src))
     jeu = os.path.join(ICI, "build", "icon.iconset")
     shutil.rmtree(jeu, ignore_errors=True)
     os.makedirs(jeu, exist_ok=True)
@@ -206,7 +212,14 @@ def main():
     print("\n  Image disque…")
     dmg = faire_dmg(app)
     print("\n  Terminé : %s (%.1f Mo)" % (dmg, os.path.getsize(dmg) / 1e6))
-    print("  Architecture : %s — ce .dmg ne vaut que pour les Mac de ce type." % platform.machine())
+    arch = platform.machine()
+    if arch == "x86_64":
+        print("  Architecture : x86_64 (Intel) — ce .dmg vaut pour TOUS les Mac :")
+        print("                 sur un Mac Apple Silicon il tourne via Rosetta 2, que")
+        print("                 macOS propose d'installer au premier lancement.")
+    else:
+        print("  Architecture : %s — ce .dmg ne vaut que pour les Mac Apple Silicon." % arch)
+        print("                 Un Mac Intel le refusera : construisez-le sur un Mac Intel.")
 
 
 if __name__ == "__main__":
