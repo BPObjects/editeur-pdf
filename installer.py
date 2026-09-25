@@ -5,6 +5,7 @@
     python installer.py --etat          dit ce qui est posé, sans rien écrire
     python installer.py --desinstaller  retire tout
     python installer.py --diffuser      recopie AUSSI le build dans le dossier de diffusion
+    python installer.py --diffuser "<dossier>"   dit une fois où, et le retient
     python installer.py --sans-imprimante   installe sans poser l'imprimante « PDF BPO »
 
 POURQUOI CE SCRIPT EXISTE. L'exécutable était lancé depuis là où il avait été
@@ -39,8 +40,10 @@ SOURCE = os.path.join(ICI, "dist", NOM_FICHIER)
 CIBLE_DIR = os.path.join(os.environ.get("LOCALAPPDATA", os.path.expanduser("~")),
                          "Programs", "Editeur PDF BPO")
 CIBLE = os.path.join(CIBLE_DIR, NOM_FICHIER)
-DIFFUSION = os.path.join(os.path.expanduser("~"), "Dropbox", "AL's shared workspace",
-                         "Architecture-AL", "2- logiciels et objets", "SOFT PC", NOM_FICHIER)
+# Le dossier de diffusion — la copie qu'on laisse aux collègues — dépend du
+# poste et de l'agence : il n'a rien à faire dans un source publié. On le donne
+# une fois, il est retenu à côté du script (fichier ignoré par git).
+MEMO_DIFFUSION = os.path.join(ICI, "diffusion.txt")
 IMPRIMANTE = "PDF BPO"
 PILOTE = "Microsoft Print To PDF"
 DOSSIER_IMPR = os.path.join(os.path.expanduser("~"), "Documents", "Impressions BPO")
@@ -49,6 +52,35 @@ DEMARRAGE = os.path.join(os.environ.get("APPDATA", ""), "Microsoft", "Windows",
                          "Start Menu", "Programs", "Startup")
 LNK_VEILLEUR = os.path.join(DEMARRAGE, "Veilleur PDF BPO.lnk")
 CLE_DESINST = r"Software\Microsoft\Windows\CurrentVersion\Uninstall\\" + APPID
+
+
+def argument_apres(drapeau: str):
+    """La valeur qui suit un drapeau, si ce n'en est pas un autre."""
+    try:
+        suivant = sys.argv[sys.argv.index(drapeau) + 1]
+    except (ValueError, IndexError):
+        return None
+    return None if suivant.startswith("-") else suivant
+
+
+def dossier_diffusion(explicite=None):
+    """Par ordre : ce qui est donné sur la ligne de commande (et retenu pour la
+    prochaine fois), la variable EDITEUR_PDF_DIFFUSION, puis ce qui est retenu."""
+    if explicite:
+        try:
+            with open(MEMO_DIFFUSION, "w", encoding="utf-8") as f:
+                f.write(explicite)
+        except OSError:
+            pass
+        return explicite
+    par_env = os.environ.get("EDITEUR_PDF_DIFFUSION", "").strip()
+    if par_env:
+        return par_env
+    try:
+        with open(MEMO_DIFFUSION, encoding="utf-8") as f:
+            return f.read().strip() or None
+    except OSError:
+        return None
 
 
 def echo(msg=""):
@@ -356,11 +388,16 @@ def installer(diffuser: bool):
         poser_imprimante()
 
     if diffuser:
-        if os.path.isdir(os.path.dirname(DIFFUSION)):
-            shutil.copy2(SOURCE, DIFFUSION)
-            echo("  Diffusion  : %s" % DIFFUSION)
+        dossier = dossier_diffusion(argument_apres("--diffuser"))
+        if not dossier:
+            echo("  Diffusion  : aucun dossier connu. Donnez-le une fois :")
+            echo('               python installer.py --diffuser "<dossier>"')
+        elif os.path.isdir(dossier):
+            arrivee = os.path.join(dossier, NOM_FICHIER)
+            shutil.copy2(SOURCE, arrivee)
+            echo("  Diffusion  : %s" % arrivee)
         else:
-            echo("  Diffusion  : dossier introuvable, ignoré")
+            echo("  Diffusion  : dossier introuvable, ignoré (%s)" % dossier)
 
     echo()
     echo("  Lancez l'application par son raccourci, jamais par un exe trouvé")
@@ -415,6 +452,8 @@ def etat():
     port = (r.stdout or "").strip()
     echo("  Imprimante      : %s" % (("« %s » → %s" % (IMPRIMANTE, port)) if port else "(absente)"))
     echo("  Veilleur        : %s" % ("au démarrage" if os.path.isfile(LNK_VEILLEUR) else "(pas au démarrage)"))
+    diff = dossier_diffusion()
+    echo("  Diffusion       : %s" % (diff if diff else "(aucun dossier retenu)"))
     if os.path.isdir(DOSSIER_IMPR):
         n = len([f for f in os.listdir(DOSSIER_IMPR) if f.lower().endswith(".pdf")])
         echo("  Impressions     : %d fichier(s) dans %s" % (n, DOSSIER_IMPR))

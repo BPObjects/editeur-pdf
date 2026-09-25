@@ -28,6 +28,9 @@ crée les raccourcis Bureau et menu Démarrer, et l'enregistre pour qu'elle
 apparaisse dans « Ouvrir avec » et dans les Paramètres de Windows.
 `--etat` dit ce qui est posé sans rien écrire, `--desinstaller` retire tout,
 `--diffuser` recopie en plus le build dans le dossier de diffusion de l'agence.
+Ce dossier dépend du poste, il n'est donc pas écrit dans le source : donnez-le une
+fois par `--diffuser "<dossier>"`, il est retenu dans `diffusion.txt` à côté du
+script. La variable d'environnement `EDITEUR_PDF_DIFFUSION` l'emporte sur lui.
 
 **Pourquoi un emplacement fixe.** L'exécutable était lancé depuis là où il avait
 été déposé — Dropbox, la sortie de build, la copie d'un collègue — et Windows
