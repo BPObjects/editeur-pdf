@@ -45,6 +45,28 @@ désigner l'éditeur par défaut : clic droit sur un PDF → *Ouvrir avec* →
 reste sans effet, passer par *Paramètres* → *Applications* → *Applications par
 défaut*, y taper `.pdf`, et choisir l'éditeur.
 
+## Imprimer vers l'éditeur depuis n'importe quel logiciel
+
+`installer.py` pose aussi une imprimante **« PDF BPO »**. Imprimer dessus depuis
+Archicad, Word ou tout autre logiciel produit un PDF qui **s'ouvre tout seul
+dans l'éditeur**, prêt à être compressé, signé ou assemblé.
+
+Les cinq formats sont disponibles et mesurés à la sortie : A4 210×297, A3
+297×420, A2 420×594, A1 594×841, A0 841×1189 mm. Dans la liste des formats du
+logiciel, A1 et A0 s'appellent `ISOA1` et `ISOA0`.
+
+**Comment ça marche, et pourquoi ce détour.** Windows ne sait pas fabriquer une
+imprimante qui APPELLE une application : un port d'impression écrit dans un
+fichier, un point c'est tout. L'imprimante écrit donc toujours dans
+`Documents\Impressions BPO\impression.pdf`, et `veilleur.py` — le même
+exécutable lancé avec `--veilleur`, démarré à chaque ouverture de session —
+attend que le fichier soit complet, lui donne un nom daté, et l'ouvre.
+
+Un vrai pilote d'imprimante virtuelle ferait cela seul, mais il faut le signer
+et l'installer en administrateur. Ce détour ne demande ni l'un ni l'autre :
+l'imprimante s'appuie sur le pilote **Microsoft Print To PDF** déjà présent dans
+Windows. `installer.py --sans-imprimante` l'omet, `--desinstaller` la retire.
+
 ## Exécutable Windows
 
 `python build.py` produit `dist/Editeur PDF BPO.exe` : un seul fichier d'environ
@@ -104,7 +126,8 @@ font la même chose hors champ de saisie.
   couvert (—, €, œ, →…) s'écrit, et l'export ne garde que les glyphes utilisés.
 - `index.html` — interface, un seul fichier, sans dépendance.
 - `make_icon.py`, `build.py` — icône et construction de l'exécutable.
-- `installer.py` — installation pour l'utilisateur courant, raccourcis, registre.
+- `installer.py` — installation pour l'utilisateur courant, raccourcis, registre, imprimante.
+- `veilleur.py` — ramasse ce que l'imprimante « PDF BPO » dépose et l'ouvre.
 - `requirements.txt` / `requirements-app.txt` / `requirements-build.txt` —
   moteur seul / application bureau / outils de construction.
 - `LICENSE`, `THIRD-PARTY.md` — licence et composants tiers.

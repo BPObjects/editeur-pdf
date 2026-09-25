@@ -5,6 +5,7 @@
     python installer.py --etat          dit ce qui est posé, sans rien écrire
     python installer.py --desinstaller  retire tout
     python installer.py --diffuser      recopie AUSSI le build dans le dossier de diffusion
+    python installer.py --sans-imprimante   installe sans poser l'imprimante « PDF BPO »
 
 POURQUOI CE SCRIPT EXISTE. L'exécutable était lancé depuis là où il avait été
 déposé — un dossier Dropbox, la sortie de build, une copie d'un collègue — et
@@ -26,6 +27,7 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 import winreg
 
 ICI = os.path.dirname(os.path.abspath(__file__))
@@ -39,6 +41,13 @@ CIBLE_DIR = os.path.join(os.environ.get("LOCALAPPDATA", os.path.expanduser("~"))
 CIBLE = os.path.join(CIBLE_DIR, NOM_FICHIER)
 DIFFUSION = os.path.join(os.path.expanduser("~"), "Dropbox", "AL's shared workspace",
                          "Architecture-AL", "2- logiciels et objets", "SOFT PC", NOM_FICHIER)
+IMPRIMANTE = "PDF BPO"
+PILOTE = "Microsoft Print To PDF"
+DOSSIER_IMPR = os.path.join(os.path.expanduser("~"), "Documents", "Impressions BPO")
+PORT_IMPR = os.path.join(DOSSIER_IMPR, "impression.pdf")
+DEMARRAGE = os.path.join(os.environ.get("APPDATA", ""), "Microsoft", "Windows",
+                         "Start Menu", "Programs", "Startup")
+LNK_VEILLEUR = os.path.join(DEMARRAGE, "Veilleur PDF BPO.lnk")
 CLE_DESINST = r"Software\Microsoft\Windows\CurrentVersion\Uninstall\\" + APPID
 
 
@@ -54,17 +63,45 @@ def stop(msg: str):
 
 
 # ---------------------------------------------------------------- l'application tourne-t-elle ?
-def processus_en_cours() -> bool:
-    """Deux contrôles, parce qu'ils n'attrapent pas la même chose : la liste des
-    tâches voit N'IMPORTE QUEL exemplaire ouvert (y compris une copie Dropbox),
-    l'ouverture en écriture voit le verrou réel du fichier qu'on veut remplacer."""
+def instances(avec_veilleur=True) -> list:
+    """Les exemplaires en cours, avec leur ligne de commande.
+
+    On lit la LIGNE DE COMMANDE et pas seulement le nom : le veilleur
+    d'impression est le même exécutable, lancé avec --veilleur. Sans cette
+    distinction, l'installateur se refuserait lui-même à chaque fois, puisque
+    c'est lui qui a démarré le veilleur.
+    """
+    cmd = ("Get-CimInstance Win32_Process -Filter \"Name='%s'\" | "
+           "ForEach-Object { $_.ProcessId.ToString() + '|' + $_.CommandLine }" % NOM_FICHIER)
     try:
-        r = subprocess.run(["tasklist", "/FI", "IMAGENAME eq " + NOM_FICHIER, "/NH", "/FO", "CSV"],
-                           capture_output=True, text=True, timeout=20)
-        if NOM_FICHIER.lower() in (r.stdout or "").lower():
-            return True
+        r = subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", cmd],
+                           capture_output=True, text=True, encoding="utf-8",
+                           errors="replace", timeout=40)
     except Exception:
-        pass
+        return []
+    sortie = []
+    for ligne in (r.stdout or "").splitlines():
+        if "|" not in ligne:
+            continue
+        pid, _, ligne_cmd = ligne.partition("|")
+        veilleur = "--veilleur" in ligne_cmd
+        if veilleur and not avec_veilleur:
+            continue
+        sortie.append((pid.strip(), veilleur))
+    return sortie
+
+
+def arreter_veilleur():
+    for pid, veilleur in instances():
+        if veilleur:
+            subprocess.run(["taskkill", "/PID", pid, "/F"], capture_output=True)
+
+
+def processus_en_cours() -> bool:
+    """Une FENÊTRE de travail est-elle ouverte ? Le veilleur ne compte pas : on
+    l'arrête et on le relance autour de la mise à jour."""
+    if instances(avec_veilleur=False):
+        return True
     if os.path.isfile(CIBLE):
         try:
             with open(CIBLE, "r+b"):
@@ -187,7 +224,7 @@ def poser_raccourcis():
               "$s.Description='Éditeur PDF BPO'; $s.Save()"
               % (_ps(lnk), _ps(CIBLE), _ps(CIBLE_DIR), _ps(CIBLE + ",0")))
         r = subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", ps],
-                           capture_output=True, text=True)
+                           capture_output=True, text=True, encoding="utf-8", errors="replace")
         if r.returncode == 0 and os.path.isfile(lnk):
             poses.append(lnk)
     return poses
@@ -209,6 +246,65 @@ def retirer_raccourcis():
     return retires
 
 
+# ---------------------------------------------------------------- imprimante
+# Windows ne sait pas faire une imprimante qui APPELLE une application : un port
+# d'impression écrit dans un fichier, un point c'est tout. On pose donc une
+# imprimante qui écrit toujours au même endroit, et un veilleur qui ramasse.
+# Un vrai pilote virtuel ferait cela seul, mais il faudrait le signer et
+# l'installer en administrateur ; ce détour ne demande ni l'un ni l'autre.
+def _ps(commande: str):
+    return subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", commande],
+                          capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=120)
+
+
+def poser_imprimante():
+    os.makedirs(DOSSIER_IMPR, exist_ok=True)
+    echo("  Dossier    : %s" % DOSSIER_IMPR)
+
+    r = _ps("Get-Printer -Name '%s' -ErrorAction SilentlyContinue" % IMPRIMANTE)
+    if IMPRIMANTE not in (r.stdout or ""):
+        _ps("Add-PrinterPort -Name %s -ErrorAction SilentlyContinue" % _ps_txt(PORT_IMPR))
+        a = _ps("Add-Printer -Name '%s' -DriverName '%s' -PortName %s"
+                % (IMPRIMANTE, PILOTE, _ps_txt(PORT_IMPR)))
+        if a.returncode != 0:
+            echo("  Imprimante : ÉCHEC — %s" % (a.stderr or "").strip().splitlines()[:1])
+            return False
+    echo("  Imprimante : « %s » (pilote %s)" % (IMPRIMANTE, PILOTE))
+
+    # Le veilleur au démarrage de la session : c'est l'exécutable lui-même,
+    # lancé avec --veilleur, donc aucun Python requis sur le poste.
+    if os.path.isdir(DEMARRAGE):
+        ps = ("$s=(New-Object -ComObject WScript.Shell).CreateShortcut(%s);"
+              "$s.TargetPath=%s; $s.Arguments='--veilleur'; $s.WorkingDirectory=%s;"
+              "$s.IconLocation=%s; $s.Description='Ramasse les impressions PDF BPO'; $s.Save()"
+              % (_ps_txt(LNK_VEILLEUR), _ps_txt(CIBLE), _ps_txt(CIBLE_DIR), _ps_txt(CIBLE + ",0")))
+        if _ps(ps).returncode == 0 and os.path.isfile(LNK_VEILLEUR):
+            echo("  Veilleur   : lancé à chaque ouverture de session")
+    # et tout de suite, sans attendre la prochaine session
+    try:
+        subprocess.Popen([CIBLE, "--veilleur"], close_fds=True)
+        echo("  Veilleur   : démarré")
+    except Exception as e:
+        echo("  Veilleur   : non démarré (%s)" % e)
+    return True
+
+
+def deposer_imprimante():
+    _ps("Remove-Printer -Name '%s' -ErrorAction SilentlyContinue" % IMPRIMANTE)
+    _ps("Remove-PrinterPort -Name %s -ErrorAction SilentlyContinue" % _ps_txt(PORT_IMPR))
+    echo("  Imprimante retirée : %s" % IMPRIMANTE)
+    if os.path.isfile(LNK_VEILLEUR):
+        try:
+            os.remove(LNK_VEILLEUR); echo("  Veilleur retiré    : %s" % LNK_VEILLEUR)
+        except OSError:
+            pass
+    echo("  Le dossier %s est conservé : il contient vos impressions." % DOSSIER_IMPR)
+
+
+def _ps_txt(s: str) -> str:
+    return "'" + s.replace("'", "''") + "'"
+
+
 # ---------------------------------------------------------------- actions
 def version_du_build() -> str:
     horo = "inconnue"
@@ -218,7 +314,7 @@ def version_du_build() -> str:
     court = ""
     try:
         r = subprocess.run(["git", "-C", ICI, "log", "-1", "--format=%h"],
-                           capture_output=True, text=True, timeout=10)
+                           capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=10)
         if r.returncode == 0:
             court = " " + r.stdout.strip()
     except Exception:
@@ -227,6 +323,11 @@ def version_du_build() -> str:
 
 
 def installer(diffuser: bool):
+    # On arrête le veilleur AVANT le contrôle : c'est le même exécutable, il
+    # tient donc le fichier qu'on s'apprête à remplacer, et le contrôle de
+    # verrou le prendrait pour une fenêtre de travail ouverte.
+    arreter_veilleur()
+    time.sleep(0.4)
     if processus_en_cours():
         stop("L'Éditeur PDF BPO est en cours d'exécution.\n"
              "  Fermez toutes ses fenêtres, puis relancez : python installer.py")
@@ -250,6 +351,10 @@ def installer(diffuser: bool):
     for lnk in poser_raccourcis():
         echo("  Raccourci  : %s" % lnk)
 
+    if "--sans-imprimante" not in sys.argv:
+        echo()
+        poser_imprimante()
+
     if diffuser:
         if os.path.isdir(os.path.dirname(DIFFUSION)):
             shutil.copy2(SOURCE, DIFFUSION)
@@ -266,6 +371,8 @@ def installer(diffuser: bool):
 def desinstaller():
     if processus_en_cours():
         stop("L'Éditeur PDF BPO est en cours d'exécution. Fermez-le d'abord.")
+    arreter_veilleur()
+    deposer_imprimante()
     for lnk in retirer_raccourcis():
         echo("  Raccourci retiré : %s" % lnk)
     for cle in (r"Software\Classes\Applications\\" + NOM_FICHIER,
@@ -301,7 +408,16 @@ def etat():
     for d in dossiers_raccourcis():
         lnk = os.path.join(d, NOM_AFFICHE + ".lnk")
         echo("  Raccourci       : %s" % (lnk if os.path.isfile(lnk) else "(absent de %s)" % d))
-    echo("  En cours        : %s" % ("oui" if processus_en_cours() else "non"))
+    ins = instances()
+    echo("  Fenêtres        : %d" % len([1 for _, v in ins if not v]))
+    echo("  Veilleur actif  : %s" % ("oui" if any(v for _, v in ins) else "non"))
+    r = _ps("Get-Printer -Name '%s' -ErrorAction SilentlyContinue | Select-Object -ExpandProperty PortName" % IMPRIMANTE)
+    port = (r.stdout or "").strip()
+    echo("  Imprimante      : %s" % (("« %s » → %s" % (IMPRIMANTE, port)) if port else "(absente)"))
+    echo("  Veilleur        : %s" % ("au démarrage" if os.path.isfile(LNK_VEILLEUR) else "(pas au démarrage)"))
+    if os.path.isdir(DOSSIER_IMPR):
+        n = len([f for f in os.listdir(DOSSIER_IMPR) if f.lower().endswith(".pdf")])
+        echo("  Impressions     : %d fichier(s) dans %s" % (n, DOSSIER_IMPR))
 
 
 def main():

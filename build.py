@@ -14,7 +14,8 @@ import subprocess
 import sys
 
 ICI = os.path.dirname(os.path.abspath(__file__))
-DONNEES = ("index.html", "serveur.py", "app.py", "make_icon.py", "build.py", "build-macos.py", "installer.py",
+DONNEES = ("index.html", "serveur.py", "app.py", "veilleur.py", "make_icon.py", "build.py",
+           "build-macos.py", "installer.py",
            "README.md", "LICENSE", "THIRD-PARTY.md", "requirements.txt", "requirements-app.txt",
            "requirements-build.txt", "Editeur PDF.bat", "Editeur PDF (navigateur).bat")
 
@@ -58,7 +59,8 @@ def main():
     args = [sys.executable, "-m", "PyInstaller", "--noconfirm", "--clean", "--onefile", "--noconsole",
             "--name", "Editeur PDF BPO", "--icon", "icon.ico",
             "--version-file", ecrire_version(),
-            "--collect-all", "webview", "--collect-all", "pymupdf"]
+            "--collect-all", "webview", "--collect-all", "pymupdf",
+            "--hidden-import", "veilleur"]
     for f in DONNEES:
         args += ["--add-data", f"{f}{os.pathsep}."]
     args.append("app.py")

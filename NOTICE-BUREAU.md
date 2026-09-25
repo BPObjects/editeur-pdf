@@ -73,6 +73,24 @@ l'application, et cliquez sur **Ouvrir quand même**.
 
 ---
 
+## Imprimer vers l'éditeur
+
+L'installation ajoute une imprimante nommée **PDF BPO** à votre liste
+d'imprimantes. Depuis Archicad, Word ou n'importe quel logiciel, choisissez-la
+au moment d'imprimer : le PDF s'ouvre tout seul dans l'éditeur, prêt à être
+compressé, signé ou assemblé. Il est aussi rangé, daté, dans
+*Documents / Impressions BPO*.
+
+Tous les formats sont là, du A4 au **A0**. Dans la liste des formats, A1 et A0
+peuvent s'appeler `ISOA1` et `ISOA0` — ce sont bien les bons : 594 × 841 mm et
+841 × 1189 mm.
+
+Si rien ne s'ouvre après une impression, le PDF est quand même dans
+*Documents / Impressions BPO* : rien n'est perdu. Ouvrez-le à la main, et
+signalez-le.
+
+---
+
 ## Deux choses à savoir absolument
 
 **Compresser n'enregistre pas.** Ce sont deux gestes : le bouton *Compresser*

@@ -253,6 +253,13 @@ def nettoyer_impressions():
 
 
 def main():
+    # Le même exécutable sert de veilleur d'impression : c'est ce qui évite
+    # d'exiger Python sur le poste où l'imprimante « PDF BPO » est posée.
+    if "--veilleur" in sys.argv:
+        import veilleur
+        veilleur.boucle()
+        return
+
     nettoyer_impressions()
     srv = serveur.creer_serveur(0)
     port = srv.server_address[1]
