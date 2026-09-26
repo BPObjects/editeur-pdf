@@ -27,7 +27,13 @@ travailler depuis un autre poste du réseau local.
 crée les raccourcis Bureau et menu Démarrer, et l'enregistre pour qu'elle
 apparaisse dans « Ouvrir avec » et dans les Paramètres de Windows.
 `--etat` dit ce qui est posé sans rien écrire, `--desinstaller` retire tout,
-`--diffuser` recopie en plus le build dans le dossier de diffusion de l'agence.
+`--diffuser` recopie en plus le build dans le dossier de diffusion de l'agence,
+sous le nom `Editeur PDF BPO (a copier).exe` — volontairement DIFFERENT de celui
+qui est installé. Windows associe une application par nom de fichier et non par
+chemin : tant que les deux exemplaires portaient le même nom, un clic sur un PDF
+pouvait partir sur la copie réseau, et la remplacer la faisait disparaître le
+temps d'une synchronisation. La diffusion refuse par ailleurs d'écraser un
+exemplaire en cours d'exécution.
 Ce dossier dépend du poste, il n'est donc pas écrit dans le source : donnez-le une
 fois par `--diffuser "<dossier>"`, il est retenu dans `diffusion.txt` à côté du
 script. La variable d'environnement `EDITEUR_PDF_DIFFUSION` l'emporte sur lui.

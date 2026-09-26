@@ -33,6 +33,12 @@ import winreg
 
 ICI = os.path.dirname(os.path.abspath(__file__))
 NOM_FICHIER = "Editeur PDF BPO.exe"      # sans accent : il sert de clé de registre
+# La copie de diffusion porte un AUTRE nom, volontairement. Windows associe une
+# application par NOM DE FICHIER et non par chemin : tant que l'exemplaire de
+# Dropbox s'appelait comme celui qui est installé, un clic sur un PDF pouvait
+# partir sur lui — et le jour où la diffusion l'a remplacé, Dropbox l'a repassé
+# en fichier fantôme et plus rien ne s'ouvrait. Deux noms, deux destins.
+NOM_DIFFUSION = "Editeur PDF BPO (a copier).exe"
 NOM_AFFICHE = "Éditeur PDF BPO"
 PROGID = "EditeurPdfBpo.Document"
 APPID = "EditeurPdfBpo"
@@ -95,7 +101,7 @@ def stop(msg: str):
 
 
 # ---------------------------------------------------------------- l'application tourne-t-elle ?
-def instances(avec_veilleur=True) -> list:
+def instances(avec_veilleur=True, nom=None) -> list:
     """Les exemplaires en cours, avec leur ligne de commande.
 
     On lit la LIGNE DE COMMANDE et pas seulement le nom : le veilleur
@@ -104,7 +110,7 @@ def instances(avec_veilleur=True) -> list:
     c'est lui qui a démarré le veilleur.
     """
     cmd = ("Get-CimInstance Win32_Process -Filter \"Name='%s'\" | "
-           "ForEach-Object { $_.ProcessId.ToString() + '|' + $_.CommandLine }" % NOM_FICHIER)
+           "ForEach-Object { $_.ProcessId.ToString() + '|' + $_.CommandLine }" % (nom or NOM_FICHIER))
     try:
         r = subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", cmd],
                            capture_output=True, text=True, encoding="utf-8",
@@ -410,7 +416,7 @@ def installer(diffuser: bool):
             echo("  Diffusion  : aucun dossier connu. Donnez-le une fois :")
             echo('               python installer.py --diffuser "<dossier>"')
         elif os.path.isdir(dossier):
-            arrivee = os.path.join(dossier, NOM_FICHIER)
+            arrivee = os.path.join(dossier, NOM_DIFFUSION)
             # NE PAS écraser un exemplaire en cours d'exécution. Windows associe
             # une application par NOM DE FICHIER et non par chemin : un clic sur
             # un PDF peut très bien lancer la copie de diffusion plutôt que celle
@@ -419,7 +425,13 @@ def installer(diffuser: bool):
             # le lancement suivant ne donne plus rien. Vécu le 26/09 : « l'app ne
             # s'ouvre plus quand je clique un pdf », puis « ça marche » une fois
             # la synchronisation terminée.
-            occupee = [c for _, _, c in instances(avec_veilleur=False)
+            # On interroge le nom de la COPIE DE DIFFUSION : depuis qu'elle en
+            # porte un autre, la chercher sous NOM_FICHIER ne trouverait rien.
+            # avec_veilleur=True, a la difference du controle d'installation :
+            # un exemplaire qui tourne en veilleur tient le fichier tout autant
+            # qu'une fenetre de travail. Ici on ne cherche pas « peut-on mettre a
+            # jour », on cherche « ce fichier est-il en cours d'execution ».
+            occupee = [c for _, _, c in instances(nom=NOM_DIFFUSION)
                        if os.path.normcase(arrivee) in os.path.normcase(c)]
             if occupee:
                 echo("  Diffusion  : IGNORÉE, cet exemplaire tourne en ce moment :")
@@ -433,9 +445,10 @@ def installer(diffuser: bool):
             echo("  Diffusion  : dossier introuvable, ignoré (%s)" % dossier)
 
     echo()
-    echo("  Lancez l'application par son raccourci, jamais par un exe trouvé")
-    echo("  dans Dropbox : Windows n'a qu'une entrée pour tous les exemplaires")
-    echo("  qui portent le même nom de fichier.")
+    echo("  Lancez l'application par son raccourci du Bureau. La copie de")
+    echo("  diffusion porte exprès un autre nom — « %s » —" % NOM_DIFFUSION)
+    echo("  pour que Windows ne puisse pas confondre les deux exemplaires :")
+    echo("  il associe une application par nom de fichier, pas par chemin.")
 
 
 def desinstaller():

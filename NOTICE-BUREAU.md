@@ -8,9 +8,17 @@ sur Internet**, même quand l'outil s'ouvre dans un navigateur.
 
 ## Sur un PC (Windows)
 
-**1. Copiez `Editeur PDF BPO.exe` où vous voulez.** Il n'y a rien à installer :
-un seul fichier, il fonctionne depuis le Bureau, un dossier ou une clé USB.
+**1. Copiez `Editeur PDF BPO (a copier).exe` où vous voulez**, et renommez-le
+`Editeur PDF BPO.exe` une fois chez vous. Il n'y a rien à installer : un seul
+fichier, il fonctionne depuis le Bureau, un dossier ou une clé USB.
 Pour un raccourci : clic droit sur le fichier → *Envoyer vers* → *Bureau*.
+
+*Pourquoi ce nom bizarre dans le dossier partagé :* Windows associe une
+application par nom de fichier et non par chemin. Tant que l'exemplaire du
+dossier partagé s'appelait comme celui que vous installez, un double-clic sur un
+PDF pouvait partir sur la copie du réseau — qui disparaît le temps d'une
+synchronisation. **Ne lancez jamais l'outil depuis le dossier partagé : copiez-le
+d'abord.**
 
 **2. Au premier lancement, Windows va vous faire peur.** Un écran bleu
 apparaît :
