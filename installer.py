@@ -119,14 +119,26 @@ def instances(avec_veilleur=True) -> list:
         veilleur = "--veilleur" in ligne_cmd
         if veilleur and not avec_veilleur:
             continue
-        sortie.append((pid.strip(), veilleur))
+        sortie.append((pid.strip(), veilleur, ligne_cmd.strip()))
     return sortie
 
 
 def arreter_veilleur():
-    for pid, veilleur in instances():
+    for pid, veilleur, _ in instances():
         if veilleur:
             subprocess.run(["taskkill", "/PID", pid, "/F"], capture_output=True)
+
+
+def relancer_veilleur() -> bool:
+    """Remet en marche le ramasseur d'impressions, s'il y a un executable pose."""
+    if not os.path.isfile(CIBLE):
+        return False
+    try:
+        subprocess.Popen([CIBLE, "--veilleur"], close_fds=True)
+        return True
+    except Exception:
+        return False
+
 
 
 def processus_en_cours() -> bool:
@@ -361,6 +373,11 @@ def installer(diffuser: bool):
     arreter_veilleur()
     time.sleep(0.4)
     if processus_en_cours():
+        # On vient de l'arrêter pour pouvoir contrôler ; si l'on renonce, il
+        # faut le RELANCER. Sans cela un refus laisse l'imprimante « PDF BPO »
+        # muette jusqu'à la prochaine ouverture de session : elle produit bien
+        # le PDF, mais plus personne ne le ramasse. Vécu le 26/09.
+        relancer_veilleur()
         stop("L'Éditeur PDF BPO est en cours d'exécution.\n"
              "  Fermez toutes ses fenêtres, puis relancez : python installer.py")
     if not os.path.isfile(SOURCE) or os.path.getsize(SOURCE) < 40 * 1024 * 1024:
@@ -394,8 +411,24 @@ def installer(diffuser: bool):
             echo('               python installer.py --diffuser "<dossier>"')
         elif os.path.isdir(dossier):
             arrivee = os.path.join(dossier, NOM_FICHIER)
-            shutil.copy2(SOURCE, arrivee)
-            echo("  Diffusion  : %s" % arrivee)
+            # NE PAS écraser un exemplaire en cours d'exécution. Windows associe
+            # une application par NOM DE FICHIER et non par chemin : un clic sur
+            # un PDF peut très bien lancer la copie de diffusion plutôt que celle
+            # qui est installée. L'écraser pendant ce temps la fait disparaître —
+            # Dropbox la repasse en fichier fantôme le temps de la renvoyer, et
+            # le lancement suivant ne donne plus rien. Vécu le 26/09 : « l'app ne
+            # s'ouvre plus quand je clique un pdf », puis « ça marche » une fois
+            # la synchronisation terminée.
+            occupee = [c for _, _, c in instances(avec_veilleur=False)
+                       if os.path.normcase(arrivee) in os.path.normcase(c)]
+            if occupee:
+                echo("  Diffusion  : IGNORÉE, cet exemplaire tourne en ce moment :")
+                echo("               %s" % arrivee)
+                echo("               Fermez-le et relancez, ou lancez l'application")
+                echo("               par son raccourci — jamais depuis Dropbox.")
+            else:
+                shutil.copy2(SOURCE, arrivee)
+                echo("  Diffusion  : %s" % arrivee)
         else:
             echo("  Diffusion  : dossier introuvable, ignoré (%s)" % dossier)
 
@@ -446,8 +479,8 @@ def etat():
         lnk = os.path.join(d, NOM_AFFICHE + ".lnk")
         echo("  Raccourci       : %s" % (lnk if os.path.isfile(lnk) else "(absent de %s)" % d))
     ins = instances()
-    echo("  Fenêtres        : %d" % len([1 for _, v in ins if not v]))
-    echo("  Veilleur actif  : %s" % ("oui" if any(v for _, v in ins) else "non"))
+    echo("  Fenêtres        : %d" % len([1 for _, v, _ in ins if not v]))
+    echo("  Veilleur actif  : %s" % ("oui" if any(v for _, v, _ in ins) else "non"))
     r = _ps("Get-Printer -Name '%s' -ErrorAction SilentlyContinue | Select-Object -ExpandProperty PortName" % IMPRIMANTE)
     port = (r.stdout or "").strip()
     echo("  Imprimante      : %s" % (("« %s » → %s" % (IMPRIMANTE, port)) if port else "(absente)"))
