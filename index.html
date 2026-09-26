@@ -65,7 +65,7 @@ input,select{font:inherit}
    se comporte exactement comme avant ; elargie, elle etale les pages sur la
    largeur sans qu'aucun code ne change de mode. */
 #vignettes{flex:1;overflow:auto;padding:10px 12px;display:grid;align-content:start;
-  grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px 12px}
+  grid-template-columns:repeat(auto-fill,minmax(min(150px,100%),1fr));gap:14px 12px}
 .vig{position:relative;cursor:pointer;border-radius:4px;outline:2px solid transparent;outline-offset:3px;transition:outline-color .12s}
 /* height:auto est indispensable. L'attribut height de l'image est un indice de
    presentation : sans cette regle il l'emporte sur le ratio, et la vignette est
@@ -557,7 +557,12 @@ function colonnesVignettes() {
 }
 function largeurVignette() {
   const { dispo, n } = colonnesVignettes();
-  return Math.floor((dispo - VIG_ESPACE * (n - 1)) / n);
+  // Math.min : le CSS plie la piste a la boite (minmax(min(150px,100%),1fr)),
+  // le calcul doit plier pareil. Sans cela, sous 174 px de colonne on demandait
+  // au serveur une image de 110 px pour l'afficher a 150 — floue, et debordant
+  // de la colonne. MESURE a 150 px avant correction : clientWidth 134 pour un
+  // scrollWidth de 174, ascenseur horizontal et vignettes coupees a droite.
+  return Math.max(40, Math.floor((dispo - VIG_ESPACE * (n - 1)) / n));
 }
 function majGrilleVignettes() {
   el.vignettes.classList.toggle('grille', colonnesVignettes().n >= 2);
@@ -580,6 +585,12 @@ function rendreVignettes() {
   });
   cont.replaceChildren(frag);
   majGrilleVignettes();
+  // On a mesure la largeur AVANT d'inserer : l'ascenseur de la colonne n'existait
+  // pas encore, et la grille n'avait pas encore choisi son nombre de pistes. On
+  // remesure maintenant, et on redemande si l'ecart compte. MESURE de l'ecart :
+  // 339 px avant insertion, 324 apres — et a la bascule en grille, une image de
+  // 227 px etait affichee a 300.
+  if (Math.abs(largeurVignette() - larg) > 2) { S.largVig = 0; majResolutionVignettes(); }
   const c = cont.querySelector('.courante');
   // vigNous AVANT le defilement : sans cela notre propre scrollIntoView passe
   // pour un geste de l'utilisateur et le suivi se tait 1,5 s apres chaque
@@ -1073,14 +1084,29 @@ function battementDefil(t) {
   const dt = Math.min(0.05, Math.max(0, (t - defil.t) / 1000));
   defil.t = t;
   const vy = vitesseDefil(defil.y - defil.y0), vx = vitesseDefil(defil.x - defil.x0);
-  S.defilV = Math.max(Math.abs(vx), Math.abs(vy));
-  if (vy) el.zone.scrollTop += vy * dt;
-  if (vx) el.zone.scrollLeft += vx * dt;
+  const y0 = el.zone.scrollTop, x0 = el.zone.scrollLeft;
+  // Les restes sous le pixel s'accumulent CHEZ NOUS. Ajouter directement
+  // vy * dt a scrollTop les perdait a chaque image : le moteur arrondit, et un
+  // geste lent rendait 60 px/s la ou la loi en promet 85 — 30 % avales, juste
+  // dans la plage ou l'on cherche la precision.
+  defil.resteY += vy * dt;
+  defil.resteX += vx * dt;
+  const pasY = Math.trunc(defil.resteY), pasX = Math.trunc(defil.resteX);
+  if (pasY) { el.zone.scrollTop += pasY; defil.resteY -= pasY; }
+  if (pasX) { el.zone.scrollLeft += pasX; defil.resteX -= pasX; }
+  // La vitesse publiee est celle dont la page BOUGE VRAIMENT, pas celle qu'on
+  // commande. Deux consequences, et ce sont les deux bonnes : une derive
+  // laterale de la main n'eteint plus les images quand la page ne peut pas
+  // defiler de cote (elle tient dans la largeur), et arrive en fin de document
+  // la vitesse retombe a zero — les dernieres pages se chargent au lieu de
+  // rester blanches tant qu'on tient la molette.
+  const bouge = Math.max(Math.abs(el.zone.scrollTop - y0), Math.abs(el.zone.scrollLeft - x0));
+  S.defilV = dt > 0 ? bouge / dt : 0;
   defil.rid = requestAnimationFrame(battementDefil);
 }
 function ouvrirDefil(e) {
   defil = { x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY,
-            t: performance.now(), id: e.pointerId, rid: 0 };
+            t: performance.now(), id: e.pointerId, rid: 0, resteX: 0, resteY: 0 };
   try { el.zone.setPointerCapture(e.pointerId); } catch (err) { }
   document.body.classList.add('defile-vite');
   marqueurDefil(true, e.clientX, e.clientY);
@@ -1153,7 +1179,7 @@ window.addEventListener('resize', surTaille);
 // =====================================================================
 // Etroite on se repere, large on choisit : ce sont deux usages, pas un reglage
 // cosmetique. D'ou une poignee, un bouton, une touche, et une memoire.
-const LARG_MIN = 150, LARG_DEF = 196, LARG_SEUIL = 400;
+const LARG_MIN = 150, LARG_DEF = 196;
 let largEtroite = LARG_DEF, largVoulue = LARG_DEF;
 
 // La largeur VOULUE et la largeur POSSIBLE sont deux choses. On retient la
@@ -1170,13 +1196,22 @@ function poserLargeurPages(px, memoriser = true) {
   if (memoriser) { try { localStorage.setItem('bpo-pdf-larg-pages', String(largVoulue)); } catch (err) { } }
   return eff;
 }
+// La largeur « etendue » depend de la fenetre : la comparer a une constante
+// etait faux. Dans une fenetre de moins de 760 px la cible tombe SOUS l'ancien
+// seuil de 400, et la bascule se rappelait elle-meme : sa premiere instruction
+// ecrasait la largeur etroite memorisee par la large, F4 devenait un aller sans
+// retour, et le 196 partait dans localStorage. MESURE avant correction, a
+// innerWidth 759 : 196 -> 399, puis largEtroite passait de 196 a 399, fige.
+const largeurEtendue = () => Math.max(LARG_MIN,
+  Math.min(window.innerWidth - 360, Math.round(window.innerWidth * 0.62)));
+
 function basculerLargeurPages() {
-  const l = largeurPages();
-  if (l < LARG_SEUIL) {
-    largEtroite = l;
-    poserLargeurPages(Math.min(window.innerWidth - 360, Math.round(window.innerWidth * 0.62)));
+  const large = largeurEtendue(), l = Math.round(largeurPages());
+  if (l < large) {
+    largEtroite = l;                 // toujours strictement plus etroit que la cible
+    poserLargeurPages(large);
   } else {
-    poserLargeurPages(largEtroite || LARG_DEF);
+    poserLargeurPages(Math.min(largEtroite || LARG_DEF, large));
   }
   majResolutionVignettes();
 }
@@ -1198,7 +1233,7 @@ function basculerLargeurPages() {
     if (!tirage) return;
     tirage = null; p.classList.remove('actif'); document.body.style.cursor = '';
     const l = poserLargeurPages(largeurPages());      // la largeur atteinte devient la memoire
-    if (l < LARG_SEUIL) largEtroite = l;
+    if (l < largeurEtendue()) largEtroite = l;   // meme regle qu'a la bascule
     majResolutionVignettes();
   };
   p.addEventListener('pointerup', finTirage);
@@ -1209,7 +1244,7 @@ function basculerLargeurPages() {
 
   let memo = 0;
   try { memo = parseInt(localStorage.getItem('bpo-pdf-larg-pages') || '', 10) || 0; } catch (err) { }
-  if (memo) { const l = poserLargeurPages(memo, false); if (l < LARG_SEUIL) largEtroite = l; }
+  if (memo) { const l = poserLargeurPages(memo, false); if (l < largeurEtendue()) largEtroite = l; }
   // Recadrer AVANT de redemander les images : la largeur effective vient de
   // changer, et c'est elle qui dicte la definition.
   window.addEventListener('resize', debounce(() => {
