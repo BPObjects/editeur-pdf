@@ -53,14 +53,25 @@ input,select{font:inherit}
 
 /* ------- corps ------- */
 #corps{display:flex;height:calc(100% - 52px)}
-#pages{width:196px;background:#f4f4f6;border-right:1px solid var(--bord);display:flex;flex-direction:column;flex:none}
+#pages{width:var(--larg-pages,196px);background:#f4f4f6;border-right:1px solid var(--bord);display:flex;flex-direction:column;flex:none}
+/* Poignee d'elargissement : six pixels cliquables entre la colonne et la vue. */
+#poignee-pages{width:6px;flex:none;cursor:col-resize;background:transparent;transition:background .12s}
+#poignee-pages:hover,#poignee-pages.actif{background:var(--accent)}
 #pages-outils{display:flex;gap:2px;padding:6px;border-bottom:1px solid var(--bord);flex-wrap:wrap}
 #pages-outils button{padding:5px 7px;border-radius:6px;color:#333;font-size:12.5px;display:inline-flex;align-items:center;gap:4px}
 #pages-outils button:hover:not(:disabled){background:#e2e3e8}
 #pages-outils svg{width:15px;height:15px}
-#vignettes{flex:1;overflow:auto;padding:10px 12px;display:flex;flex-direction:column;gap:12px}
+/* Une grille plutot qu'une colonne : a 196 px elle n'a qu'un rang de large et
+   se comporte exactement comme avant ; elargie, elle etale les pages sur la
+   largeur sans qu'aucun code ne change de mode. */
+#vignettes{flex:1;overflow:auto;padding:10px 12px;display:grid;align-content:start;
+  grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px 12px}
 .vig{position:relative;cursor:pointer;border-radius:4px;outline:2px solid transparent;outline-offset:3px;transition:outline-color .12s}
-.vig img{display:block;width:100%;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.25);border-radius:2px}
+/* height:auto est indispensable. L'attribut height de l'image est un indice de
+   presentation : sans cette regle il l'emporte sur le ratio, et la vignette est
+   ecrasee des que la colonne ne fait plus exactement la largeur demandee au
+   serveur — ce qui etait deja le cas, de 13 %, avant meme de l'elargir. */
+.vig img{display:block;width:100%;height:auto;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.25);border-radius:2px}
 .vig .num{position:absolute;left:50%;bottom:-2px;transform:translate(-50%,50%);background:#2a2b31;color:#fff;font-size:11px;padding:1px 7px;border-radius:9px}
 .vig.courante{outline-color:#8a8c98}
 .vig.sel{outline-color:var(--accent)}
@@ -68,7 +79,20 @@ input,select{font:inherit}
 .vig.cible-avant::before,.vig.cible-apres::after{content:"";position:absolute;left:-4px;right:-4px;height:3px;background:var(--accent);border-radius:2px}
 .vig.cible-avant::before{top:-8px}
 .vig.cible-apres::after{bottom:-8px}
+/* En grille les pages se suivent de gauche a droite : le trait doit tourner. */
+.grille .vig.cible-avant::before,.grille .vig.cible-apres::after{left:auto;right:auto;top:-4px;bottom:-4px;width:3px;height:auto}
+.grille .vig.cible-avant::before{left:-7px}
+.grille .vig.cible-apres::after{right:-7px}
 #pages-pied{padding:6px 10px;font-size:12px;color:var(--gris);border-top:1px solid var(--bord)}
+
+/* Ancre du defilement rapide : sans reperE visible, on ne sait plus d'ou l'on
+   s'eloigne, donc plus ce qu'on commande. */
+#marqueur-defil{position:fixed;left:0;top:0;width:36px;height:36px;margin:-18px 0 0 -18px;border-radius:50%;
+  background:rgba(255,255,255,.94);box-shadow:0 1px 7px rgba(0,0,0,.4);display:none;place-items:center;
+  pointer-events:none;z-index:9999;color:#2a2b31}
+#marqueur-defil.on{display:grid}
+#marqueur-defil svg{width:22px;height:22px}
+body.defile-vite,body.defile-vite #zone-vue,body.defile-vite .calque{cursor:ns-resize!important}
 
 #centre{flex:1;display:flex;flex-direction:column;min-width:0}
 #barre-vue{height:38px;display:flex;align-items:center;justify-content:center;gap:6px;border-bottom:1px solid var(--bord);background:#f0f0f3;font-size:13px;color:#444}
@@ -213,10 +237,12 @@ kbd{background:#eee;border:1px solid #ccc;border-radius:4px;padding:0 5px;font-s
       <button id="p-gauche" title="Tourner à gauche"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 10a8 8 0 1 1 3 6"/><path d="M4 4v6h6"/></svg></button>
       <button id="p-droite" title="Tourner à droite"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 10a8 8 0 1 0-3 6"/><path d="M20 4v6h-6"/></svg></button>
       <button id="p-extraire" title="Enregistrer les pages sélectionnées dans un nouveau PDF"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 3H6v18h12V7z"/><path d="M14 3v4h4M9 13h6M9 17h6"/></svg>Extraire</button>
+      <button id="p-large" title="Étendre la colonne des vignettes sur la largeur (F4)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 5v14M21 5v14"/><path d="M7 12h10M10 9l-3 3 3 3M14 9l3 3-3 3"/></svg></button>
     </div>
     <div id="vignettes"></div>
     <div id="pages-pied">Glissez une vignette pour réordonner · Ctrl/Maj pour sélectionner plusieurs</div>
   </aside>
+  <div id="poignee-pages" title="Glissez pour élargir la colonne · double-clic pour l'étendre"></div>
 
   <main id="centre">
     <div id="barre-vue">
@@ -366,6 +392,8 @@ const S = {
   id: null, nom: '', pages: [], version: 0, taille: 0, annulable: false,
   page: 0, zoom: 1, zoomMode: 'page', mode: 'select', sel: new Set(), ancre: 0,
   lignes: [], sig: null, occupe: 0,
+  largVig: 0,      // largeur a laquelle les vignettes ont ete DEMANDEES au serveur
+  defilV: 0,       // vitesse du defilement rapide en cours, en px/s
 };
 const DPR = Math.min(window.devicePixelRatio || 1, 2);
 const $ = (s) => document.querySelector(s);
@@ -519,15 +547,31 @@ function majBoutonsPages() {
 
 // ---- vignettes -------------------------------------------------------
 function urlPage(i, zoom) { return `/api/doc/${S.id}/page/${i}.png?zoom=${zoom.toFixed(3)}&k=${S.pages[i].cle}`; }
+// Largeur REELLE d'une vignette telle qu'elle sera affichee. C'est elle qu'on
+// demande au serveur : sinon la colonne elargie ne fait qu'agrandir une image
+// de 150 px, et tout devient flou. Ces trois nombres doivent suivre le CSS.
+const VIG_MIN = 150, VIG_ESPACE = 12, VIG_MARGE = 24;
+function colonnesVignettes() {
+  const dispo = Math.max(60, el.vignettes.clientWidth - VIG_MARGE);
+  return { dispo, n: Math.max(1, Math.floor((dispo + VIG_ESPACE) / (VIG_MIN + VIG_ESPACE))) };
+}
+function largeurVignette() {
+  const { dispo, n } = colonnesVignettes();
+  return Math.floor((dispo - VIG_ESPACE * (n - 1)) / n);
+}
+function majGrilleVignettes() {
+  el.vignettes.classList.toggle('grille', colonnesVignettes().n >= 2);
+}
 function rendreVignettes() {
   const cont = el.vignettes;
   const frag = document.createDocumentFragment();
+  const larg = S.largVig = largeurVignette();
   S.pages.forEach((p, i) => {
     const d = document.createElement('div');
     d.className = 'vig' + (i === S.page ? ' courante' : '') + (S.sel.has(i) ? ' sel' : '');
     d.dataset.i = i; d.draggable = true;
     const im = document.createElement('img');
-    const larg = 150; const z = larg / p.w;
+    const z = larg / p.w;
     im.width = larg; im.height = Math.round(p.h * z);
     im.loading = 'lazy'; im.src = urlPage(i, z * DPR);
     d.appendChild(im);
@@ -535,7 +579,28 @@ function rendreVignettes() {
     frag.appendChild(d);
   });
   cont.replaceChildren(frag);
-  const c = cont.querySelector('.courante'); if (c) c.scrollIntoView({ block: 'nearest' });
+  majGrilleVignettes();
+  const c = cont.querySelector('.courante');
+  // vigNous AVANT le defilement : sans cela notre propre scrollIntoView passe
+  // pour un geste de l'utilisateur et le suivi se tait 1,5 s apres chaque
+  // reconstruction de la colonne.
+  if (c) { vigNous = performance.now(); c.scrollIntoView({ block: 'nearest' }); }
+}
+// La colonne a change de largeur. On ne remonte PAS le DOM — on y perdrait la
+// place et un glisse en cours : on redemande seulement les images a la bonne
+// definition, et seulement si l'ecart le merite.
+function majResolutionVignettes() {
+  if (!S.pages.length) return;
+  majGrilleVignettes();
+  const larg = largeurVignette();
+  if (S.largVig && Math.abs(larg - S.largVig) / S.largVig < 0.2) return;
+  S.largVig = larg;
+  el.vignettes.querySelectorAll('.vig').forEach((d) => {
+    const i = +d.dataset.i, p = S.pages[i]; if (!p) return;
+    const z = larg / p.w, im = d.querySelector('img');
+    im.width = larg; im.height = Math.round(p.h * z);
+    im.src = urlPage(i, z * DPR);
+  });
 }
 el.vignettes.addEventListener('click', (e) => {
   const v = e.target.closest('.vig'); if (!v) return;
@@ -550,7 +615,37 @@ function rafraichirSelVignettes() {
   el.vignettes.querySelectorAll('.vig').forEach(v => {
     const i = +v.dataset.i; v.classList.toggle('sel', S.sel.has(i)); v.classList.toggle('courante', i === S.page);
   });
+  suivreVignette();
   majBoutonsPages();
+}
+
+// La colonne suit la page affichee — mais elle se tait si l'on vient d'y
+// defiler soi-meme : rien n'est plus agacant qu'une liste qui vous reprend la
+// main pendant que vous la parcourez. On distingue notre propre defilement du
+// sien par l'horodatage, seul moyen fiable : l'evenement scroll est identique.
+let vigNous = 0, vigLui = 0;
+el.vignettes.addEventListener('scroll', () => {
+  if (performance.now() - vigNous < 300) return;   // c'etait nous
+  vigLui = performance.now();
+}, { passive: true });
+function suivreVignette() {
+  if (performance.now() - vigLui < 1500) return;
+  const v = el.vignettes.querySelector('.vig.courante'); if (!v) return;
+  const c = el.vignettes, rv = v.getBoundingClientRect(), rc = c.getBoundingClientRect();
+  let d = 0;
+  if (rv.top < rc.top + 6) d = rv.top - rc.top - 6;
+  else if (rv.bottom > rc.bottom - 6) d = rv.bottom - rc.bottom + 6;
+  if (!d) return;
+  vigNous = performance.now();
+  c.scrollTop += d;
+}
+// En colonne on coupe en haut/bas, en grille a gauche/droite : c'est le sens de
+// lecture qui change, pas la logique.
+function apresVignette(v, e) {
+  const r = v.getBoundingClientRect();
+  return el.vignettes.classList.contains('grille')
+    ? e.clientX > r.left + r.width / 2
+    : e.clientY > r.top + r.height / 2;
 }
 // glisser-déposer pour réordonner
 let dragI = null;
@@ -559,8 +654,7 @@ el.vignettes.addEventListener('dragover', (e) => {
   if (dragI == null) return; e.preventDefault(); e.stopPropagation();
   el.vignettes.querySelectorAll('.cible-avant,.cible-apres').forEach(x => x.classList.remove('cible-avant', 'cible-apres'));
   const v = e.target.closest('.vig'); if (!v) return;
-  const r = v.getBoundingClientRect(); const apres = e.clientY > r.top + r.height / 2;
-  v.classList.add(apres ? 'cible-apres' : 'cible-avant');
+  v.classList.add(apresVignette(v, e) ? 'cible-apres' : 'cible-avant');
 });
 el.vignettes.addEventListener('dragend', () => { dragI = null; el.vignettes.querySelectorAll('.cible-avant,.cible-apres').forEach(x => x.classList.remove('cible-avant', 'cible-apres')); });
 el.vignettes.addEventListener('drop', async (e) => {
@@ -568,7 +662,7 @@ el.vignettes.addEventListener('drop', async (e) => {
   const v = e.target.closest('.vig'); const src = dragI; dragI = null;
   el.vignettes.querySelectorAll('.cible-avant,.cible-apres').forEach(x => x.classList.remove('cible-avant', 'cible-apres'));
   if (!v) return;
-  const r = v.getBoundingClientRect(); let cible = +v.dataset.i + (e.clientY > r.top + r.height / 2 ? 1 : 0);
+  let cible = +v.dataset.i + (apresVignette(v, e) ? 1 : 0);
   // déplace la sélection si la page traînée en fait partie, sinon la page seule
   const bloc = (S.sel.has(src) && S.sel.size > 1) ? [...S.sel].sort((a, b) => a - b) : [src];
   const reste = S.pages.map((_, i) => i).filter(i => !bloc.includes(i));
@@ -730,15 +824,21 @@ function libererImage(d) {
 // Une seule passe fait tout : charger ce qui approche, libérer ce qui s'éloigne,
 // et désigner la page courante — celle qui couvre le milieu de la vue.
 let minuteurImage = null;
+// Au-dela de cette vitesse (px/s), on cesse de DEMANDER les images : elles
+// n'auraient pas le temps de paraitre, et on inonderait le serveur de rendus
+// qu'on jetterait aussitot. Les pages montrent alors leur numero, ce qui est
+// justement ce qu'on cherche en traversant un document a toute allure.
+const DEFIL_SEUIL_IMAGE = 2500;
 function majVisibles() {
   if (!S.pages.length) return;
   const zone = el.zone;
   const haut = zone.scrollTop, hv = zone.clientHeight, bas = haut + hv;
   const centre = haut + hv / 2, marge = Math.max(hv, 400);
+  const vite = S.defilV > DEFIL_SEUIL_IMAGE;
   let courante = -1, meilleure = 0;
   el.pile.querySelectorAll('.page').forEach((d) => {
     const i = +d.dataset.i, y0 = d.offsetTop, y1 = y0 + d.offsetHeight;
-    if (y1 > haut - marge && y0 < bas + marge) chargerImage(d, i); else libererImage(d);
+    if (y1 > haut - marge && y0 < bas + marge) { if (!vite) chargerImage(d, i); } else libererImage(d);
     if (y0 <= centre && y1 >= centre) courante = i;
     else {
       const vu = Math.min(y1, bas) - Math.max(y0, haut);
@@ -917,8 +1017,10 @@ el.zone.addEventListener('wheel', (e) => {
 // -- panoramique à la main ----------------------------------------------
 let pano = null;
 el.zone.addEventListener('pointerdown', (e) => {
-  const milieu = e.button === 1;
-  if (!milieu && !(S.mode === 'select' && e.button === 0)) return;
+  // Le bouton du milieu ne fait plus de panoramique 1:1 : il ouvre le
+  // defilement rapide, plus bas. Le panoramique precis reste au bouton gauche
+  // en mode Selection, qui est le geste fait pour cela.
+  if (!(S.mode === 'select' && e.button === 0)) return;
   if (e.target.closest('#pose, #editeur-ligne, #editeur-libre')) return;
   pano = { x: e.clientX, y: e.clientY, sl: el.zone.scrollLeft, st: el.zone.scrollTop, id: e.pointerId };
   el.zone.setPointerCapture(e.pointerId);
@@ -933,6 +1035,97 @@ el.zone.addEventListener('pointermove', (e) => {
 const finPano = () => { pano = null; el.calque.style.cursor = ''; };
 el.zone.addEventListener('pointerup', finPano);
 el.zone.addEventListener('pointercancel', finPano);
+
+// -- defilement rapide au bouton du milieu -------------------------------
+// Appuyer sur la molette pose une ancre ; s'en eloigner fait defiler, et la
+// vitesse croit PLUS VITE que la distance. Relacher arrete.
+//
+// L'exposant 1,6 n'est pas un ornement : avec une simple proportion, ou bien le
+// geste court est inexploitable, ou bien le geste long est trop lent. Il faut
+// que les deux bouts servent — quelques pages d'un cote, la traversee du
+// document de l'autre. Reperes MESURES au banc, la distance s'entendant hors
+// zone morte : 30 px de l'ancre ~ 85 px/s, 60 px ~ 550, 120 px ~ 1 740,
+// 250 px ~ 6 260, et le plafond des 400 px.
+const DEFIL = { mort: 14, expo: 1.6, max: 14000 };
+let defil = null, marqueur = null;
+
+function vitesseDefil(d) {
+  const a = Math.abs(d) - DEFIL.mort;
+  if (a <= 0) return 0;
+  return Math.sign(d) * Math.min(DEFIL.max, Math.pow(a, DEFIL.expo));
+}
+function marqueurDefil(on, x, y) {
+  if (!marqueur) {
+    marqueur = document.createElement('div');
+    marqueur.id = 'marqueur-defil';
+    marqueur.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor">' +
+      '<path d="M12 2l3.2 4.4H8.8L12 2zM12 22l-3.2-4.4h6.4L12 22z"/>' +
+      '<circle cx="12" cy="12" r="1.7"/></svg>';
+    document.body.appendChild(marqueur);
+  }
+  marqueur.classList.toggle('on', !!on);
+  if (on) { marqueur.style.left = x + 'px'; marqueur.style.top = y + 'px'; }
+}
+// Le pas se calcule sur le TEMPS ecoule, jamais sur le nombre d'images : la
+// vitesse doit etre la meme que l'ecran batte a 60 ou a 144 Hz.
+function battementDefil(t) {
+  if (!defil) return;
+  const dt = Math.min(0.05, Math.max(0, (t - defil.t) / 1000));
+  defil.t = t;
+  const vy = vitesseDefil(defil.y - defil.y0), vx = vitesseDefil(defil.x - defil.x0);
+  S.defilV = Math.max(Math.abs(vx), Math.abs(vy));
+  if (vy) el.zone.scrollTop += vy * dt;
+  if (vx) el.zone.scrollLeft += vx * dt;
+  defil.rid = requestAnimationFrame(battementDefil);
+}
+function ouvrirDefil(e) {
+  defil = { x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY,
+            t: performance.now(), id: e.pointerId, rid: 0 };
+  try { el.zone.setPointerCapture(e.pointerId); } catch (err) { }
+  document.body.classList.add('defile-vite');
+  marqueurDefil(true, e.clientX, e.clientY);
+  defil.rid = requestAnimationFrame(battementDefil);
+}
+function fermerDefil() {
+  if (!defil) return;
+  cancelAnimationFrame(defil.rid);
+  try { el.zone.releasePointerCapture(defil.id); } catch (err) { }
+  defil = null; S.defilV = 0;
+  document.body.classList.remove('defile-vite');
+  marqueurDefil(false);
+  majVisibles();          // on recharge enfin ce qui est reellement sous les yeux
+}
+el.zone.addEventListener('pointerdown', (e) => {
+  if (e.button !== 1) return;
+  if (e.target.closest('#pose, #editeur-ligne, #editeur-libre')) return;
+  e.preventDefault();
+  if (defil) fermerDefil(); else ouvrirDefil(e);
+});
+el.zone.addEventListener('pointermove', (e) => {
+  if (!defil || e.pointerId !== defil.id) return;
+  defil.x = e.clientX; defil.y = e.clientY;
+});
+el.zone.addEventListener('pointerup', (e) => { if (defil && e.button === 1) fermerDefil(); });
+el.zone.addEventListener('pointercancel', () => fermerDefil());
+// Le moteur a son propre defilement automatique sur le bouton du milieu : sans
+// ce garde il s'ajouterait au notre et les deux se disputeraient la page.
+el.zone.addEventListener('mousedown', (e) => { if (e.button === 1) e.preventDefault(); });
+// Filet : un onglet masque n'a plus de rAF, et un relachement survenu hors de la
+// page ne nous parvient pas. Sans ces trois gardes, l'ancre reste posee, le
+// curseur reste force, et le document continue de defiler tout seul au retour.
+// MESURE avant correction : apres un blur, l'ancre etait toujours la et la page
+// avait gagne 1 300 px.
+window.addEventListener('pointerup', (e) => { if (defil && e.button === 1) fermerDefil(); });
+window.addEventListener('blur', () => fermerDefil());
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') fermerDefil();
+});
+el.zone.addEventListener('auxclick', (e) => { if (e.button === 1) e.preventDefault(); });
+// En capture, et seulement quand le defilement tourne : sans cela le gestionnaire
+// general d'Echap nous le prendrait pour revenir au mode Selection.
+window.addEventListener('keydown', (e) => {
+  if (defil && e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); fermerDefil(); }
+}, true);
 
 // -- la fenêtre change de taille ----------------------------------------
 // Un ResizeObserver plutôt que l'événement resize : il se déclenche aussi à la
@@ -954,6 +1147,76 @@ observateurTaille.observe($('#centre'));
 // Second déclencheur : l'observateur n'est pas livré quand la page est masquée
 // (il suit le rythme du rendu), l'événement resize prend alors le relais.
 window.addEventListener('resize', surTaille);
+
+// =====================================================================
+// Largeur de la colonne des vignettes
+// =====================================================================
+// Etroite on se repere, large on choisit : ce sont deux usages, pas un reglage
+// cosmetique. D'ou une poignee, un bouton, une touche, et une memoire.
+const LARG_MIN = 150, LARG_DEF = 196, LARG_SEUIL = 400;
+let largEtroite = LARG_DEF, largVoulue = LARG_DEF;
+
+// La largeur VOULUE et la largeur POSSIBLE sont deux choses. On retient la
+// premiere et on applique la seconde : sinon une colonne large laissee telle
+// quelle dans une fenetre qu'on retrecit mange toute la place — mesure avant
+// correction : colonne 1000 px, fenetre ramenee a 800, la vue du document
+// tombait a ZERO pixel et le document disparaissait.
+const largeurPages = () => $('#pages').getBoundingClientRect().width;
+function poserLargeurPages(px, memoriser = true) {
+  largVoulue = Math.max(LARG_MIN, Math.round(px));
+  const max = Math.max(LARG_MIN, window.innerWidth - 360);   // la vue garde de quoi vivre
+  const eff = Math.max(LARG_MIN, Math.min(max, largVoulue));
+  document.documentElement.style.setProperty('--larg-pages', eff + 'px');
+  if (memoriser) { try { localStorage.setItem('bpo-pdf-larg-pages', String(largVoulue)); } catch (err) { } }
+  return eff;
+}
+function basculerLargeurPages() {
+  const l = largeurPages();
+  if (l < LARG_SEUIL) {
+    largEtroite = l;
+    poserLargeurPages(Math.min(window.innerWidth - 360, Math.round(window.innerWidth * 0.62)));
+  } else {
+    poserLargeurPages(largEtroite || LARG_DEF);
+  }
+  majResolutionVignettes();
+}
+(() => {
+  const p = $('#poignee-pages');
+  let tirage = null;
+  p.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0) return;
+    tirage = { x: e.clientX, l: largeurPages(), id: e.pointerId };
+    try { p.setPointerCapture(e.pointerId); } catch (err) { }
+    p.classList.add('actif'); document.body.style.cursor = 'col-resize';
+    e.preventDefault();
+  });
+  p.addEventListener('pointermove', (e) => {
+    if (!tirage || e.pointerId !== tirage.id) return;
+    poserLargeurPages(tirage.l + (e.clientX - tirage.x), false);
+  });
+  const finTirage = () => {
+    if (!tirage) return;
+    tirage = null; p.classList.remove('actif'); document.body.style.cursor = '';
+    const l = poserLargeurPages(largeurPages());      // la largeur atteinte devient la memoire
+    if (l < LARG_SEUIL) largEtroite = l;
+    majResolutionVignettes();
+  };
+  p.addEventListener('pointerup', finTirage);
+  p.addEventListener('pointercancel', finTirage);
+  window.addEventListener('blur', finTirage);
+  p.addEventListener('dblclick', basculerLargeurPages);
+  $('#p-large').onclick = basculerLargeurPages;
+
+  let memo = 0;
+  try { memo = parseInt(localStorage.getItem('bpo-pdf-larg-pages') || '', 10) || 0; } catch (err) { }
+  if (memo) { const l = poserLargeurPages(memo, false); if (l < LARG_SEUIL) largEtroite = l; }
+  // Recadrer AVANT de redemander les images : la largeur effective vient de
+  // changer, et c'est elle qui dicte la definition.
+  window.addEventListener('resize', debounce(() => {
+    poserLargeurPages(largVoulue, false);
+    majResolutionVignettes();
+  }, 150));
+})();
 
 // =====================================================================
 // Modes
@@ -1391,6 +1654,7 @@ document.addEventListener('keydown', (e) => {
     case 't': case 'T': setMode('texte'); break;
     case 'a': case 'A': setMode('libre'); break;
     case 's': case 'S': setMode('signature'); break;
+    case 'F4': basculerLargeurPages(); break;
     case 'Escape': setMode('select'); break;
   }
 });

@@ -68,6 +68,8 @@ l'application, et cliquez sur **Ouvrir quand même**.
 | **Signer** | Dessinez votre signature, importez-en une photo, ou tapez votre nom. Elle est conservée pour la prochaine fois. |
 | **Pages** | Colonne de gauche : supprimer, tourner, réordonner en glissant, extraire dans un nouveau PDF. |
 | **Fusionner** | Ajoutez d'autres PDF ou des images au document. |
+| **Défiler vite** | Appuyez sur la **molette** et éloignez la souris : plus vous vous éloignez, plus ça défile vite. Relâchez pour arrêter. |
+| **Vue d'ensemble** | Élargissez la colonne des vignettes en tirant son bord droit, ou par le bouton ‹→‹ : les pages s'étalent et l'on choisit d'un coup d'œil. |
 | **Zoom** | Molette avec Ctrl (⌘ sur Mac), ou le menu du pourcentage : ajuster à la page, à la largeur, taille réelle. |
 | **Annuler** | Ctrl+Z (⌘Z), trente fois de suite s'il le faut. |
 

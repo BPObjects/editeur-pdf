@@ -794,11 +794,24 @@ def _purger(age_max=6 * 3600):
         DOCS.pop(k, None)
 
 
+class Serveur(ThreadingHTTPServer):
+    """Un navigateur qui annule une image coupe la connexion, et socketserver
+    en fait une trace complète sur la sortie d'erreur. Ce n'est pas un incident :
+    c'est le fonctionnement normal d'une page qui défile vite et abandonne les
+    rendus qu'elle a dépassés. Le bruit est nuisible — il finirait par cacher
+    une vraie erreur. On se tait sur ce cas-là, sur celui-là seulement."""
+
+    daemon_threads = True
+
+    def handle_error(self, request, client_address):
+        if isinstance(sys.exc_info()[1], (ConnectionError, TimeoutError)):
+            return
+        super().handle_error(request, client_address)
+
+
 def creer_serveur(port: int = 0) -> ThreadingHTTPServer:
     """Serveur HTTP local ; port 0 = port libre choisi par le système."""
-    srv = ThreadingHTTPServer(("127.0.0.1", port), Handler)
-    srv.daemon_threads = True
-    return srv
+    return Serveur(("127.0.0.1", port), Handler)
 
 
 def main():
