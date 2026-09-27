@@ -8,17 +8,18 @@ sur Internet**, même quand l'outil s'ouvre dans un navigateur.
 
 ## Sur un PC (Windows)
 
-**1. Copiez `Editeur PDF BPO (a copier).exe` où vous voulez**, et renommez-le
-`Editeur PDF BPO.exe` une fois chez vous. Il n'y a rien à installer : un seul
-fichier, il fonctionne depuis le Bureau, un dossier ou une clé USB.
-Pour un raccourci : clic droit sur le fichier → *Envoyer vers* → *Bureau*.
+**1. Copiez `Editeur PDF BPO.zip` chez vous, puis décompressez-le** (clic droit
+→ *Extraire tout*). Vous obtenez un dossier `Editeur PDF BPO` : l'application est
+le fichier `Editeur PDF BPO.exe` qui s'y trouve. Gardez le dossier entier — les
+fichiers qui l'accompagnent lui sont nécessaires.
+Pour un raccourci : clic droit sur l'exe → *Envoyer vers* → *Bureau*.
 
-*Pourquoi ce nom bizarre dans le dossier partagé :* Windows associe une
-application par nom de fichier et non par chemin. Tant que l'exemplaire du
-dossier partagé s'appelait comme celui que vous installez, un double-clic sur un
-PDF pouvait partir sur la copie du réseau — qui disparaît le temps d'une
-synchronisation. **Ne lancez jamais l'outil depuis le dossier partagé : copiez-le
-d'abord.**
+*Pourquoi une archive et pas l'application toute prête :* Windows associe un
+programme par nom de fichier et non par chemin. Un exécutable posé dans un
+dossier partagé finit par capter les double-clics sur les PDF — et il disparaît
+le temps d'une synchronisation, si bien que plus rien ne s'ouvre. Une archive ne
+peut pas être lancée par erreur. **Décompressez chez vous, travaillez chez
+vous.**
 
 **2. Au premier lancement, Windows va vous faire peur.** Un écran bleu
 apparaît :

@@ -38,14 +38,27 @@ NOM_FICHIER = "Editeur PDF BPO.exe"      # sans accent : il sert de clé de regi
 # Dropbox s'appelait comme celui qui est installé, un clic sur un PDF pouvait
 # partir sur lui — et le jour où la diffusion l'a remplacé, Dropbox l'a repassé
 # en fichier fantôme et plus rien ne s'ouvrait. Deux noms, deux destins.
-NOM_DIFFUSION = "Editeur PDF BPO (a copier).exe"
+# La diffusion se fait par ARCHIVE depuis le 27/09 : plus aucun exécutable nu
+# dans le dossier partagé, donc plus rien que Windows puisse associer aux PDF.
+NOM_DIFFUSION = "Editeur PDF BPO (a copier).exe"   # ancien nom, pour le nettoyage
 NOM_AFFICHE = "Éditeur PDF BPO"
 PROGID = "EditeurPdfBpo.Document"
 APPID = "EditeurPdfBpo"
-SOURCE = os.path.join(ICI, "dist", NOM_FICHIER)
+NOM_DOSSIER = "Editeur PDF BPO"          # le dossier produit par build.py
+SOURCE_DIR = os.path.join(ICI, "dist", NOM_DOSSIER)
+SOURCE = os.path.join(SOURCE_DIR, NOM_FICHIER)
+SOURCE_ZIP = os.path.join(ICI, "dist", NOM_DOSSIER + ".zip")
 CIBLE_DIR = os.path.join(os.environ.get("LOCALAPPDATA", os.path.expanduser("~")),
                          "Programs", "Editeur PDF BPO")
 CIBLE = os.path.join(CIBLE_DIR, NOM_FICHIER)
+
+
+def poids_source() -> int:
+    """Poids total du dossier produit par build.py, zéro s'il n'existe pas."""
+    if not os.path.isdir(SOURCE_DIR):
+        return 0
+    return sum(os.path.getsize(os.path.join(r, f))
+               for r, _, fs in os.walk(SOURCE_DIR) for f in fs)
 # Le dossier de diffusion — la copie qu'on laisse aux collègues — dépend du
 # poste et de l'agence : il n'a rien à faire dans un source publié. On le donne
 # une fois, il est retenu à côté du script (fichier ignoré par git).
@@ -386,16 +399,26 @@ def installer(diffuser: bool):
         relancer_veilleur()
         stop("L'Éditeur PDF BPO est en cours d'exécution.\n"
              "  Fermez toutes ses fenêtres, puis relancez : python installer.py")
-    if not os.path.isfile(SOURCE) or os.path.getsize(SOURCE) < 40 * 1024 * 1024:
-        stop("dist\\%s est introuvable ou incomplet.\n"
-             "  Lancez d'abord : python build.py" % NOM_FICHIER)
+    poids = poids_source()
+    if poids < 40 * 1024 * 1024:
+        stop("dist\\%s est introuvable ou incomplet (%.1f Mo).\n"
+             "  Lancez d'abord : python build.py" % (NOM_DOSSIER, poids / 1e6))
 
     version = version_du_build()
-    os.makedirs(CIBLE_DIR, exist_ok=True)
-    # Copie puis bascule : jamais d'exécutable à moitié écrit à l'arrivée.
-    temp = CIBLE + ".neuf"
-    shutil.copy2(SOURCE, temp)
-    os.replace(temp, CIBLE)
+    # L'application est désormais un DOSSIER et non un fichier : PyInstaller en
+    # mode « un seul fichier » produisait une fenêtre qui ne s'affichait jamais
+    # (mesuré le 27/09 : 0 essai sur 4 contre 3 sur 3 en mode dossier). On copie
+    # donc à côté puis on bascule, pour qu'il n'y ait jamais d'installation à
+    # moitié écrite — même principe qu'avant, à l'échelle d'un dossier.
+    neuf = CIBLE_DIR + ".neuf"
+    vieux = CIBLE_DIR + ".vieux"
+    shutil.rmtree(neuf, ignore_errors=True)
+    shutil.rmtree(vieux, ignore_errors=True)
+    shutil.copytree(SOURCE_DIR, neuf)
+    if os.path.isdir(CIBLE_DIR):
+        os.replace(CIBLE_DIR, vieux)
+    os.replace(neuf, CIBLE_DIR)
+    shutil.rmtree(vieux, ignore_errors=True)
     echo("  Installé   : %s" % CIBLE)
     echo("  Version    : %s" % version)
 
@@ -416,39 +439,29 @@ def installer(diffuser: bool):
             echo("  Diffusion  : aucun dossier connu. Donnez-le une fois :")
             echo('               python installer.py --diffuser "<dossier>"')
         elif os.path.isdir(dossier):
-            arrivee = os.path.join(dossier, NOM_DIFFUSION)
-            # NE PAS écraser un exemplaire en cours d'exécution. Windows associe
-            # une application par NOM DE FICHIER et non par chemin : un clic sur
-            # un PDF peut très bien lancer la copie de diffusion plutôt que celle
-            # qui est installée. L'écraser pendant ce temps la fait disparaître —
-            # Dropbox la repasse en fichier fantôme le temps de la renvoyer, et
-            # le lancement suivant ne donne plus rien. Vécu le 26/09 : « l'app ne
-            # s'ouvre plus quand je clique un pdf », puis « ça marche » une fois
-            # la synchronisation terminée.
-            # On interroge le nom de la COPIE DE DIFFUSION : depuis qu'elle en
-            # porte un autre, la chercher sous NOM_FICHIER ne trouverait rien.
-            # avec_veilleur=True, a la difference du controle d'installation :
-            # un exemplaire qui tourne en veilleur tient le fichier tout autant
-            # qu'une fenetre de travail. Ici on ne cherche pas « peut-on mettre a
-            # jour », on cherche « ce fichier est-il en cours d'execution ».
-            occupee = [c for _, _, c in instances(nom=NOM_DIFFUSION)
-                       if os.path.normcase(arrivee) in os.path.normcase(c)]
-            if occupee:
-                echo("  Diffusion  : IGNORÉE, cet exemplaire tourne en ce moment :")
-                echo("               %s" % arrivee)
-                echo("               Fermez-le et relancez, ou lancez l'application")
-                echo("               par son raccourci — jamais depuis Dropbox.")
+            # On diffuse une ARCHIVE, plus un exécutable posé nu dans Dropbox.
+            # Deux raisons, toutes deux payées : l'application est maintenant un
+            # dossier ; et surtout, un .exe dans un dossier partagé finit par
+            # capter les clics — Windows associe une application par NOM DE
+            # FICHIER et non par chemin. Le 26/09, écraser cette copie pendant
+            # que Dropbox la resynchronisait a fait « l'app ne s'ouvre plus quand
+            # je clique un pdf ». Une archive ne peut pas être lancée par erreur.
+            if not os.path.isfile(SOURCE_ZIP):
+                echo("  Diffusion  : %s.zip introuvable — relancez python build.py"
+                     % NOM_DOSSIER)
             else:
-                shutil.copy2(SOURCE, arrivee)
-                echo("  Diffusion  : %s" % arrivee)
+                arrivee = os.path.join(dossier, NOM_DOSSIER + ".zip")
+                shutil.copy2(SOURCE_ZIP, arrivee)
+                echo("  Diffusion  : %s (%.1f Mo)"
+                     % (arrivee, os.path.getsize(arrivee) / 1e6))
         else:
             echo("  Diffusion  : dossier introuvable, ignoré (%s)" % dossier)
 
     echo()
-    echo("  Lancez l'application par son raccourci du Bureau. La copie de")
-    echo("  diffusion porte exprès un autre nom — « %s » —" % NOM_DIFFUSION)
-    echo("  pour que Windows ne puisse pas confondre les deux exemplaires :")
-    echo("  il associe une application par nom de fichier, pas par chemin.")
+    echo("  Lancez l'application par son raccourci du Bureau. Ce qui part en")
+    echo("  diffusion est une ARCHIVE, jamais un exécutable nu : Windows associe")
+    echo("  une application par nom de fichier et non par chemin, et une copie")
+    echo("  posée dans un dossier partagé finit par capter les clics.")
 
 
 def desinstaller():

@@ -19,11 +19,15 @@ import shutil
 import subprocess
 import sys
 import threading
+import time
 import webbrowser
 
 import webview
 
 import serveur
+
+# Flux du journal quand l'application est empaquetée (voir journal_si_fenetre_muette).
+JOURNAL = None
 
 # ---------------------------------------------------------------------
 # Le poste d'accueil : chaque système range les réglages ailleurs.
@@ -252,7 +256,41 @@ def nettoyer_impressions():
         pass
 
 
+def journal_si_fenetre_muette():
+    """Un exécutable FENÊTRÉ n'a ni sortie standard ni sortie d'erreur : PyInstaller
+    les laisse à None. Toute écriture y lève, et l'erreur qui l'a provoquée
+    disparaît avec elle — c'est exactement ce qui manquait le jour où la fenêtre
+    a cessé de s'ouvrir et où l'application n'avait rien à raconter. On les
+    remplace par un journal sur disque, à un endroit qu'on peut citer.
+    """
+    if not getattr(sys, "frozen", False):
+        return None
+    chemin = None
+    flux = None
+    try:
+        d = os.path.join(os.environ.get("LOCALAPPDATA") or os.path.expanduser("~"),
+                         "Editeur PDF BPO")
+        os.makedirs(d, exist_ok=True)
+        chemin = os.path.join(d, "journal.txt")
+        flux = open(chemin, "a", encoding="utf-8", errors="replace", buffering=1)
+    except Exception:
+        import io as _io
+        flux, chemin = _io.StringIO(), None
+    # On remplace les deux flux dans TOUS les cas quand on est empaqueté : un
+    # exécutable fenêtré peut très bien avoir un stdout qui n'écrit nulle part,
+    # ce qui revient au même qu'un None — mesuré le 27/09, où stdout n'était pas
+    # None et où pourtant rien n'arrivait jamais nulle part.
+    global JOURNAL
+    JOURNAL = flux
+    sys.stdout = flux
+    sys.stderr = flux
+    print("===== %s  demarrage  argv=%r"
+          % (time.strftime("%Y-%m-%d %H:%M:%S"), sys.argv[1:]))
+    return chemin
+
+
 def main():
+    journal_si_fenetre_muette()
     # Le même exécutable sert de veilleur d'impression : c'est ce qui évite
     # d'exiger Python sur le poste où l'imprimante « PDF BPO » est posée.
     if "--veilleur" in sys.argv:
@@ -299,7 +337,59 @@ def main():
     fenetre = webview.create_window("Éditeur PDF BPO", url, js_api=api, width=1400, height=900,
                                     min_size=(960, 600), text_select=True)
     api._window = fenetre
-    webview.start()
+
+    # LA FENÊTRE NE SE MONTRE PAS TOUTE SEULE dans l'exécutable « un seul fichier »
+    # en mode fenêtré : elle est créée, placée, la page est chargée — et rien à
+    # l'écran. On la montre donc nous-mêmes, depuis l'événement « page chargée »,
+    # c'est-à-dire DANS le fil qui possède la fenêtre. Tenter la même chose depuis
+    # un fil voisin ne marche pas : vu le 27/09, EnumWindows n'y voit même pas nos
+    # propres fenêtres.
+    def au_chargement():
+        try:
+            fenetre.show()
+            print("fenetre.show() appele depuis l'evenement loaded")
+        except Exception as ex:
+            print("fenetre.show() a echoue : %r" % (ex,))
+
+    try:
+        fenetre.events.loaded += au_chargement
+    except Exception as ex:
+        print("impossible de brancher l'evenement loaded : %r" % (ex,))
+    # Une exception ici est la pire de toutes : la fenêtre existe déjà, mais elle
+    # n'est jamais montrée, et l'application reste vivante SANS RIEN AFFICHER.
+    # C'est ce qui est arrivé le 27/09. On la journalise, et on se rabat sur le
+    # navigateur plutôt que de laisser un processus muet.
+    # Un profil WebView2 STABLE, et non le dossier temporaire neuf que pywebview
+    # fabrique à chaque lancement en mode privé. Repartir d'un profil vierge
+    # oblige WebView2 à tout initialiser à chaque fois : c'est lent, et surtout
+    # c'est intermittent — mesuré le 27/09, un lancement sur quatre affichait sa
+    # fenêtre, les autres n'allaient même pas jusqu'à demander la page.
+    rangement = os.path.join(os.environ.get("LOCALAPPDATA") or os.path.expanduser("~"),
+                             "Editeur PDF BPO", "webview")
+    try:
+        os.makedirs(rangement, exist_ok=True)
+    except Exception:
+        rangement = None
+    try:
+        print("webview.start(storage_path=%r)..." % rangement)
+        if rangement:
+            webview.start(private_mode=False, storage_path=rangement)
+        else:
+            webview.start()
+        print("webview.start() rendu")
+    except BaseException as ex:
+        import traceback
+        print("ECHEC de webview.start() : %r" % (ex,))
+        traceback.print_exc()
+        try:
+            webbrowser.open(url)
+            print("repli navigateur ouvert sur %s" % url)
+        except Exception:
+            pass
+        try:
+            srv.serve_forever()          # on tient le serveur pour le navigateur
+        except Exception:
+            pass
     srv.shutdown()
 
 

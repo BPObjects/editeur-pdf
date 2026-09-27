@@ -21,6 +21,7 @@ DONNEES = ("index.html", "serveur.py", "app.py", "veilleur.py", "make_icon.py", 
 
 
 VERSION = "1.0.0"
+NOM = "Editeur PDF BPO"      # sans accent : il sert de nom de dossier et de clé de registre
 
 # Sans ce bloc, les Propriétés du fichier sont VIDES sous Windows : ni nom, ni
 # éditeur, ni version. Sur un poste qui n'est pas le nôtre, c'est la première
@@ -56,8 +57,16 @@ def main():
     os.chdir(ICI)
     if not os.path.isfile("icon.ico"):
         subprocess.check_call([sys.executable, "make_icon.py"])
-    args = [sys.executable, "-m", "PyInstaller", "--noconfirm", "--clean", "--onefile", "--noconsole",
-            "--name", "Editeur PDF BPO", "--icon", "icon.ico",
+    # --onedir ET NON --onefile. Le lanceur « un seul fichier » relance le vrai
+    # processus, et en mode fenêtré la fenêtre n'est JAMAIS montrée : créée,
+    # placée, page chargée, et rien à l'écran. Mesuré le 27/09 sur le même code,
+    # le même poste, la même minute : --onefile 0 essai sur 4, --onedir 3 sur 3,
+    # visible en 3 à 7 s. Trois contournements tentés avant d'en arriver là
+    # (forcer ShowWindow depuis un fil voisin, appeler show() sur l'événement
+    # « page chargée », figer le profil WebView2) n'ont rien donné : le défaut
+    # est dans l'emballage, pas dans l'application.
+    args = [sys.executable, "-m", "PyInstaller", "--noconfirm", "--clean", "--onedir", "--noconsole",
+            "--name", NOM, "--icon", "icon.ico",
             "--version-file", ecrire_version(),
             "--collect-all", "webview", "--collect-all", "pymupdf",
             "--hidden-import", "veilleur"]
@@ -65,8 +74,22 @@ def main():
         args += ["--add-data", f"{f}{os.pathsep}."]
     args.append("app.py")
     subprocess.check_call(args)
-    exe = os.path.join(ICI, "dist", "Editeur PDF BPO.exe")
-    print("\nExécutable :", exe, "(%.1f Mo)" % (os.path.getsize(exe) / 1e6))
+
+    dossier = os.path.join(ICI, "dist", NOM)
+    exe = os.path.join(dossier, NOM + ".exe")
+    if not os.path.isfile(exe):
+        raise SystemExit("La construction n'a pas produit %s" % exe)
+    poids = sum(os.path.getsize(os.path.join(r, f))
+                for r, _, fs in os.walk(dossier) for f in fs)
+    print("\nApplication : %s (%.1f Mo, %d fichiers)"
+          % (dossier, poids / 1e6, sum(len(fs) for _, _, fs in os.walk(dossier))))
+
+    # Un seul fichier à se passer entre collègues, malgré le dossier : une archive.
+    zip_ = os.path.join(ICI, "dist", NOM + ".zip")
+    if os.path.exists(zip_):
+        os.remove(zip_)
+    shutil.make_archive(zip_[:-4], "zip", os.path.join(ICI, "dist"), NOM)
+    print("Archive    : %s (%.1f Mo)" % (zip_, os.path.getsize(zip_) / 1e6))
     shutil.rmtree(os.path.join(ICI, "build"), ignore_errors=True)
 
 

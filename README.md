@@ -78,9 +78,18 @@ Windows. `installer.py --sans-imprimante` l'omet, `--desinstaller` la retire.
 
 ## Exécutable Windows
 
-`python build.py` produit `dist/Editeur PDF BPO.exe` : un seul fichier d'environ
-57 Mo, sans Python ni installation à prévoir sur la machine de destination
-(WebView2 est fourni avec Windows 11). L'icône est générée par `make_icon.py`.
+`python build.py` produit `dist/Editeur PDF BPO/` (l'application et ses fichiers)
+et `dist/Editeur PDF BPO.zip` (ce qui se diffuse).
+
+**Pourquoi un dossier et non un exécutable unique.** Le mode « un seul fichier »
+de PyInstaller relance le vrai processus depuis un lanceur ; en mode fenêtré, la
+fenêtre n'est alors JAMAIS affichée — créée, placée, page chargée, et rien à
+l'écran. Mesuré le 27/09 sur le même code et le même poste : `--onefile` 0 essai
+sur 4, `--onedir` 3 sur 3, visible en 3 à 7 s.
+
+Le dossier pèse environ 143 Mo, l'archive 62 Mo. Ni Python ni installation à
+prévoir sur la machine de destination (WebView2 est fourni avec Windows 11).
+L'icône est générée par `make_icon.py`.
 Les sources sont embarquées dans l'exécutable pour que le bouton **Source**
 continue de les livrer, comme l'exige l'AGPL.
 
