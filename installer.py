@@ -232,6 +232,15 @@ def enregistrer(version: str):
     poser(pg + r"\DefaultIcon", {"": (S, icone)})
     poser(pg + r"\shell\open\command", {"": (S, cmd)})
 
+    # (b bis) Effacer l'enregistrement de l'ANCIEN nom de diffusion. Il a existé
+    #     une journée, le 26/09, quand la copie partagée s'appelait
+    #     « Editeur PDF BPO (a copier).exe ». Windows enregistre une application
+    #     par NOM DE FICHIER : ouvrir un PDF avec cette copie-là a suffi pour
+    #     qu'il la retienne comme dernier choix, et le fichier ayant ensuite
+    #     disparu, il redemandait quelle application employer à CHAQUE ouverture.
+    #     On nettoie la trace là où elle est, au lieu de la laisser traîner.
+    effacer_arbre(r"Software\Classes\Applications\\" + NOM_DIFFUSION)
+
     # (c) Se PROPOSER sur le .pdf sans le prendre : on ajoute une valeur à la
     #     liste, on ne touche jamais à la valeur par défaut de .pdf.
     poser(r"Software\Classes\.pdf\OpenWithProgids", {PROGID: (winreg.REG_NONE, b"")})
