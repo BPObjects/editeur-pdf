@@ -111,7 +111,13 @@ body.defile-vite,body.defile-vite #zone-vue,body.defile-vite .calque{cursor:ns-r
 #menu-zoom kbd{background:#f0f0f3;border:1px solid #dcdce2;color:#777}
 
 #zone-vue{flex:1;overflow:auto;position:relative;scroll-behavior:auto}
-#pile{display:flex;flex-direction:column;align-items:center;gap:18px;padding:24px 0;min-height:100%}
+/* « safe center » et non « center ». Un élément flex plus large que son
+   conteneur défilant et centré déborde des DEUX côtés — et le débordement de
+   gauche devient inatteignable, puisque scrollLeft ne descend pas sous zéro.
+   MESURE avant correction : à 300 % de zoom, 304 px de la page étaient hors de
+   portée à gauche ; 602 px à 400 %. Le mot-clé « safe » centre tant que ça
+   tient et bascule sur un alignement à gauche dès que ça déborde. */
+#pile{display:flex;flex-direction:column;align-items:safe center;gap:18px;padding:24px 0;min-height:100%}
 .page{position:relative;background:#fff;box-shadow:var(--ombre);flex:none}
 .page img{display:block;width:100%;height:100%;user-select:none;-webkit-user-drag:none}
 /* Une page pas encore rendue montre son numéro plutôt qu'un rectangle muet. */
