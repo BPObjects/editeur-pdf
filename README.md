@@ -76,6 +76,25 @@ et l'installer en administrateur. Ce détour ne demande ni l'un ni l'autre :
 l'imprimante s'appuie sur le pilote **Microsoft Print To PDF** déjà présent dans
 Windows. `installer.py --sans-imprimante` l'omet, `--desinstaller` la retire.
 
+## Éprouver les changements
+
+```
+python banc/faire-pdf-commente.py      fabrique le PDF témoin
+python banc/commentaires.py            joue le banc
+python banc/commentaires.py --sabotages  …puis casse le code exprès
+```
+
+Les bancs pilotent un **vrai Chrome** par CDP (`banc/cdp.py`, WebSocket écrit à
+la main, aucune dépendance) : un volet d'aperçu non peint ne livre ni
+`requestAnimationFrame`, ni `ResizeObserver`, ni le chargement différé des
+images, et ne sait pas émettre un bouton du milieu.
+
+**Les sabotages ne sont pas un ornement.** Un banc vert ne prouve rien tant
+qu'il n'a pas mordu : chacun remet sciemment un défaut que le code corrige et
+doit faire tomber le témoin qui le vise. Le harnais signale à part un témoin
+qui n'a PAS TOURNÉ — si le banc s'arrête en route, les suivants sont absents,
+et compter les seuls tombés lirait cette absence comme un silence rassurant.
+
 ## Exécutable Windows
 
 `python build.py` produit `dist/Editeur PDF BPO/` (l'application et ses fichiers)
@@ -104,6 +123,7 @@ continue de les livrer, comme l'exige l'AGPL.
 | Défilement | Toutes les pages sont empilées : on fait défiler verticalement d'une page à l'autre, sans clic. Le numéro de page et la vignette suivent le défilement ; cliquer une vignette ou taper un numéro amène la page sous les yeux. Seules les pages proches de la vue portent une image — un dossier de 61 planches ne charge pas 61 rendus. |
 | Défiler vite | **Bouton du milieu enfoncé**, puis on s'éloigne de l'ancre : la vitesse croît plus vite que la distance — quelques pages près de l'ancre, la traversée du document loin d'elle (exposant 1,6, plafond 14 000 px/s). Relâcher ou Échap arrête. Au-delà de 2 500 px/s les images ne sont plus demandées : les pages montrent leur numéro, ce qu'on cherche justement en traversant. |
 | Colonne des vignettes | Elle **suit la page affichée**, et se tait une seconde et demie si l'on vient d'y défiler soi-même. On l'élargit en tirant la poignée à sa droite, par le bouton ‹→‹ ou par F4 ; au-delà de deux vignettes de front elle s'étale en grille, et les images sont redemandées à la définition réellement affichée. La largeur est retenue d'une fois sur l'autre. |
+| Commentaires | Lit les annotations d'une relecture — notes, surlignages, barrés, soulignés, cadres, croquis. Une pastille sur le bouton annonce le nombre dès l'ouverture. Chaque fiche porte l'auteur, la date, la page, le genre, **le texte que l'annotation recouvre** et le propos. Filtre par relecteur, repères posés sur les pages, et un bouton qui copie tout le relevé en clair. Lecture seule : l'outil ne modifie pas les annotations. |
 | Zoom | Barre sous la fenêtre : `−`, le niveau courant (menu déroulant), `+`. Le menu offre **Ajuster à la page**, **Ajuster à la largeur**, **Taille réelle** et sept niveaux de 25 à 400 %. Ctrl+molette ou pincement sur pavé tactile zoome à l'endroit du curseur ; en mode Sélection, on déplace la page en la tirant à la souris. L'ajustement est un **mode** : tant qu'il est actif, redimensionner la fenêtre recalcule l'échelle. |
 | Pages | Colonne de gauche : clic / Ctrl / Maj pour sélectionner, **Supprimer**, tourner, **Extraire** (nouveau PDF), glisser pour réordonner. |
 | Fusionner | Bouton **Fusionner** ou déposer des fichiers sur la fenêtre. PDF et images (PNG, JPG…). Inséré après la page sélectionnée s'il y en a une, sinon à la fin. |

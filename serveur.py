@@ -162,6 +162,67 @@ class Document:
                 })
         return lignes
 
+    # Les noms que PDF donne aux annotations, et ce qu'un relecteur appelle ça.
+    GENRES = {
+        "Text": "Note", "FreeText": "Texte", "Highlight": "Surlignage",
+        "Underline": "Souligné", "StrikeOut": "Barré", "Squiggly": "Ondulé",
+        "Square": "Rectangle", "Circle": "Ellipse", "Line": "Ligne",
+        "Polygon": "Polygone", "PolyLine": "Ligne brisée", "Ink": "Dessin",
+        "Stamp": "Tampon", "Caret": "Insertion", "FileAttachment": "Pièce jointe",
+        "Sound": "Son", "Movie": "Vidéo", "Redact": "Caviardage",
+    }
+
+    def commentaires(self) -> list[dict]:
+        """Les annotations du document, dans l'ordre de lecture.
+
+        C'est ce qu'on reçoit d'une relecture : notes, surlignages, barrés,
+        cadres, croquis. On rend AUSSI le texte que porte un surlignage ou un
+        barré — sans lui, « Lire 56 m2 » ne dit pas sur quoi il porte.
+
+        Les boîtes sont dans l'espace AFFICHÉ (page tournée), même convention
+        que lignes_texte : l'interface n'a plus qu'à multiplier par le zoom.
+        """
+        out = []
+        par_xref = {}
+        for n in range(len(self.doc)):
+            page = self.doc[n]
+            M = page.rotation_matrix
+            for a in page.annots():
+                genre_brut = a.type[1] or ""
+                if genre_brut == "Popup":
+                    continue          # simple bulle d'affichage de sa note parente
+                info = a.info or {}
+                r = pymupdf.Rect(a.rect) * M
+                r.normalize()
+                # Le texte sous un surlignage / barré / souligné : c'est lui
+                # qui donne son sens au commentaire.
+                porte = ""
+                if genre_brut in ("Highlight", "Underline", "StrikeOut", "Squiggly"):
+                    porte = _texte_porte(page, a)
+                c = {
+                    "page": n,
+                    "type": genre_brut,
+                    "genre": self.GENRES.get(genre_brut, genre_brut or "Annotation"),
+                    "auteur": (info.get("title") or "").strip(),
+                    "sujet": (info.get("subject") or "").strip(),
+                    "contenu": (info.get("content") or "").strip(),
+                    "texte": porte,
+                    "date": _date_pdf(info.get("modDate") or info.get("creationDate") or ""),
+                    "rect_aff": [round(v, 2) for v in (r.x0, r.y0, r.x1, r.y1)],
+                    "couleur": _couleur_annot(a),
+                    "repond_a": None,
+                }
+                par_xref[a.xref] = len(out)
+                # Une réponse pointe sa note d'origine par /IRT.
+                try:
+                    irt = a.irt_xref
+                except Exception:
+                    irt = 0
+                if irt:
+                    c["repond_a"] = par_xref.get(irt)
+                out.append(c)
+        return out
+
     POLICES_STD = ("helv", "hebo", "heit", "hebi", "tiro", "tibo", "tiit", "tibi", "cour", "cobo", "coit", "cobi")
     _TAMPON_POLICES: dict[str, bytes] = {}
 
@@ -637,6 +698,9 @@ class Handler(BaseHTTPRequestHandler):
             disposition = "inline" if parts[2] == "imprimer" else "attachment"
             return self._envoyer(200, octets, "application/pdf",
                                  {"Content-Disposition": disposition + "; filename*=UTF-8''" + urllib.parse.quote(nom)})
+        if parts[2] == "commentaires":
+            with d.verrou:
+                return self._json({"commentaires": d.commentaires()})
         if parts[2] == "extraire":
             pages = [int(x) for x in q.get("pages", [""])[0].split(",") if x != ""]
             with d.verrou:
@@ -762,6 +826,8 @@ class Handler(BaseHTTPRequestHandler):
 
 FICHIERS_SOURCE = ("serveur.py", "app.py", "veilleur.py", "make_icon.py", "build.py",
                    "installer.py", "build-macos.py",
+                   "banc/cdp.py", "banc/commun.py", "banc/sabotages.py",
+                   "banc/commentaires.py", "banc/faire-pdf-commente.py",
                    "index.html", "README.md", "LICENSE",
                    "THIRD-PARTY.md", "requirements.txt", "requirements-app.txt", "requirements-build.txt",
                    "Editeur PDF.bat", "Editeur PDF (navigateur).bat")
@@ -776,6 +842,70 @@ def archive_source() -> bytes:
             if os.path.isfile(chemin):
                 z.write(chemin, "editeur-pdf-bpo/" + nom)
     return tampon.getvalue()
+
+
+def _texte_porte(page, a) -> str:
+    """Le texte qu'un surlignage, un barré ou un souligné recouvre.
+
+    Par les QUADRILATÈRES de l'annotation, un par un, et NON par sa boîte
+    d'ensemble : celle-ci ramasse les glyphes voisins. Mesuré sur un surlignage
+    de « 443 m2 » — la boîte rendait « e 443 m2. », les quadrilatères « 443 m2 ».
+    Sans ce texte, un commentaire comme « Lire 56 m2 » ne dit pas sur quoi il
+    porte.
+    """
+    try:
+        v = a.vertices or []
+        bouts = []
+        for i in range(0, len(v) - 3, 4):
+            q = pymupdf.Quad(v[i], v[i + 1], v[i + 2], v[i + 3])
+            t = page.get_text("text", clip=q.rect)
+            if t.strip():
+                bouts.append(" ".join(t.split()))
+        porte = " ".join(bouts)[:300]
+    except Exception:
+        porte = ""
+    if porte:
+        return porte
+    try:                                   # pas de quadrilatères : on se rabat
+        return " ".join(page.get_text("text", clip=a.rect).split())[:300]
+    except Exception:
+        return ""
+
+
+def _date_pdf(s: str) -> str:
+    """« D:20261008143200+02'00' » → « 08/10/2026 14:32 ». Rend la chaîne telle
+    quelle si elle ne suit pas la forme attendue : mieux vaut une date bizarre
+    qu'une date inventée."""
+    s = (s or "").strip()
+    if s.startswith("D:"):
+        s = s[2:]
+    if len(s) < 8 or not s[:8].isdigit():
+        return ""
+    jour = "%s/%s/%s" % (s[6:8], s[4:6], s[0:4])
+    if len(s) >= 12 and s[8:12].isdigit():
+        return jour + " " + s[8:10] + ":" + s[10:12]
+    return jour
+
+
+def _couleur_annot(a) -> str:
+    """La couleur du trait, sinon celle du fond, sinon rien. PDF les donne en
+    0..1 par canal, et parfois en gris (1 canal) ou en CMJN (4)."""
+    try:
+        c = a.colors or {}
+    except Exception:
+        return ""
+    for cle in ("stroke", "fill"):
+        v = c.get(cle)
+        if not v:
+            continue
+        if len(v) == 1:
+            v = (v[0], v[0], v[0])
+        elif len(v) == 4:                     # CMJN
+            cy, m, j, k = v
+            v = ((1 - cy) * (1 - k), (1 - m) * (1 - k), (1 - j) * (1 - k))
+        if len(v) >= 3:
+            return "#%02x%02x%02x" % tuple(max(0, min(255, round(x * 255))) for x in v[:3])
+    return ""
 
 
 def _nom_export(nom: str, suffixe: str = "-modifie") -> str:

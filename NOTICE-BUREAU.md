@@ -79,6 +79,7 @@ l'application, et cliquez sur **Ouvrir quand même**.
 | **Fusionner** | Ajoutez d'autres PDF ou des images au document. |
 | **Défiler vite** | Appuyez sur la **molette** et éloignez la souris : plus vous vous éloignez, plus ça défile vite. Relâchez pour arrêter. |
 | **Vue d'ensemble** | Élargissez la colonne des vignettes en tirant son bord droit, ou par le bouton ‹→‹ : les pages s'étalent et l'on choisit d'un coup d'œil. |
+| **Commentaires** | Un PDF qui vous revient annoté ? Le bouton **Commentaires** en affiche le relevé : qui, quand, sur quelle page, et le passage visé. Cliquez-en un pour aller le voir. Le bouton *Copier* sort tout le relevé en texte. |
 | **Zoom** | Molette avec Ctrl (⌘ sur Mac), ou le menu du pourcentage : ajuster à la page, à la largeur, taille réelle. |
 | **Annuler** | Ctrl+Z (⌘Z), trente fois de suite s'il le faut. |
 

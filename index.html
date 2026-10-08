@@ -157,6 +157,25 @@ body.defile-vite,body.defile-vite #zone-vue,body.defile-vite .calque{cursor:ns-r
 #droit h3{margin:4px 0 12px;font-size:15px;display:flex;align-items:center;justify-content:space-between}
 #droit h3 button{color:var(--gris);font-size:18px;line-height:1;padding:2px 6px;border-radius:5px}
 #droit h3 button:hover{background:#e6e6ea}
+
+/* ------- commentaires d'une relecture ------- */
+#cm-barre{display:flex;gap:6px;align-items:center;margin-bottom:10px}
+#cm-barre select{flex:1;min-width:0;border:1px solid var(--bord);border-radius:6px;padding:4px 6px;font-size:12.5px;background:#fff}
+#cm-liste{display:flex;flex-direction:column;gap:8px}
+.cm{border:1px solid var(--bord);border-left:4px solid #bbb;border-radius:6px;padding:7px 9px;background:#fff;cursor:pointer}
+.cm:hover{background:#f0f0f4}
+.cm.vise{outline:2px solid var(--accent);outline-offset:1px}
+.cm .qui{display:flex;justify-content:space-between;gap:8px;font-size:12px;color:#444}
+.cm .qui b{font-weight:600}
+.cm .ou{font-size:11.5px;color:var(--gris);margin-top:2px}
+.cm .porte{font-size:12px;font-style:italic;color:#333;background:#fffbcc;border-radius:3px;padding:1px 4px;margin-top:4px;display:inline-block;max-width:100%;overflow-wrap:anywhere}
+.cm .dit{font-size:12.5px;color:#111;margin-top:4px;white-space:pre-wrap;overflow-wrap:anywhere}
+.cm.reponse{margin-left:16px;border-left-style:dashed}
+#cm-vide{font-size:13px;color:var(--gris)}
+/* Repère posé sur la page, à l'endroit de l'annotation. */
+.repere{position:absolute;border:2px solid var(--accent);border-radius:3px;background:rgba(240,110,40,.10);pointer-events:none}
+.repere.vise{background:rgba(240,110,40,.26);box-shadow:0 0 0 3px rgba(240,110,40,.35)}
+#pile.mode-commentaires .calque{cursor:default}
 .onglets{display:flex;gap:2px;background:#e8e8ec;padding:3px;border-radius:8px;margin-bottom:12px}
 .onglets button{flex:1;padding:6px 4px;border-radius:6px;font-size:12.5px;font-weight:500;color:#444}
 .onglets button.actif{background:#fff;color:#000;box-shadow:0 1px 3px rgba(0,0,0,.15)}
@@ -222,6 +241,7 @@ kbd{background:#eee;border:1px solid #ccc;border-radius:4px;padding:0 5px;font-s
     <button class="btn" data-mode="texte" title="Modifier le texte existant (T)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6V4h16v2M12 4v16M9 20h6"/></svg><span class="lbl">Texte</span></button>
     <button class="btn" data-mode="libre" title="Ajouter du texte (A)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg><span class="lbl">Ajouter texte</span></button>
     <button class="btn" data-mode="signature" title="Signer (S)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17c3-6 5-8 6-6s-1 7 1 7 3-6 5-6 1 5 3 5 2-2 3-3"/><path d="M3 21h18"/></svg><span class="lbl">Signer</span></button>
+    <button class="btn" data-mode="commentaires" title="Lire les commentaires de relecture (C)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a8 8 0 0 1-11.2 7.3L4 21l1.7-5.8A8 8 0 1 1 21 12z"/></svg><span class="lbl">Commentaires</span><span id="cm-pastille" class="masque"></span></button>
   </div>
   <span class="sep"></span>
   <button class="btn" id="b-fusion" title="Ajouter des PDF ou des images à ce document"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h9l3 3v13H4z"/><path d="M13 4v3h3M8 13h6M11 10v6"/></svg><span class="lbl">Fusionner</span></button>
@@ -351,6 +371,17 @@ kbd{background:#eee;border:1px solid #ccc;border-radius:4px;padding:0 5px;font-s
       <p class="note">Une barre s'ouvre au-dessus de la ligne : <b>corps, police, gras, italique et couleur</b>. Tant que « Police d'origine » est choisie, celle du document est réutilisée si elle est embarquée avec tous les caractères voulus ; sinon une police standard proche la remplace.</p>
       <p class="note">Le gras et l'italique n'ont de prise qu'une fois une police imposée : une police embarquée n'a pas de variante à offrir.</p>
       <p class="note" id="texte-stat"></p>
+    </section>
+
+    <section id="pan-commentaires" class="masque">
+      <h3>Commentaires <button data-fermer title="Fermer">×</button></h3>
+      <p class="note">Les annotations laissées par les relecteurs : notes, surlignages, barrés, cadres, croquis. Cliquez-en une pour aller la voir sur la page.</p>
+      <div id="cm-barre">
+        <select id="cm-qui"><option value="">Tous les relecteurs</option></select>
+        <button class="b2" id="cm-copier" title="Copier tout le relevé dans le presse-papiers">Copier</button>
+      </div>
+      <p class="note" id="cm-vide">Chargement…</p>
+      <div id="cm-liste"></div>
     </section>
   </aside>
 </div>
@@ -490,6 +521,10 @@ function apresOuverture(e) {
   appliquerEtat(e);
   el.accueil.classList.add('masque');
   document.title = e.nom + ' — Éditeur PDF';
+  // On les charge TOUT DE SUITE, sans attendre qu'on entre dans le mode : la
+  // pastille du bouton est le seul indice qu'un document est annote.
+  CM = []; cmVise = -1; majPastilleCommentaires();
+  chargerCommentaires();
   setTimeout(() => ajusterZoom('page'), 0);
 }
 async function ouvrirNatif() {
@@ -925,6 +960,7 @@ function rendrePage() {
   el.pile.querySelectorAll('.calque').forEach((c) => c.replaceChildren());
   majVisibles();
   if (S.mode === 'texte') chargerLignes();
+  if (S.mode === 'commentaires') dessinerReperes();
 }
 $('#v-prec').onclick = () => allerPage(S.page - 1);
 $('#v-suiv').onclick = () => allerPage(S.page + 1);
@@ -941,6 +977,10 @@ function replacerCalque() {
     Object.assign(d.style, { left: x0 * S.zoom + 'px', top: y0 * S.zoom + 'px', width: (x1 - x0) * S.zoom + 'px', height: (y1 - y0) * S.zoom + 'px' });
   });
   el.calque.querySelectorAll('#editeur-ligne, #editeur-libre, .aide-edit, #pose, #barre-texte').forEach((e) => { if (e._placer) e._placer(); });
+  // Les reperes de commentaires vivent sur TOUTES les pages montees, pas
+  // seulement la courante : on les repose entierement plutot que de les
+  // deplacer un a un.
+  if (S.mode === 'commentaires') dessinerReperes();
 }
 
 // Change l'échelle en gardant sous le curseur (ou au centre) le point du document
@@ -1268,10 +1308,12 @@ function setMode(m) {
   el.pile.className = 'mode-' + m;
   fermerEditeurs(); el.calque.replaceChildren();
   document.querySelectorAll('#droit section').forEach(s => s.classList.add('masque'));
-  const pan = { texte: '#pan-texte', libre: '#pan-libre', signature: '#pan-signature' }[m];
+  const pan = { texte: '#pan-texte', libre: '#pan-libre', signature: '#pan-signature',
+                commentaires: '#pan-commentaires' }[m];
   el.droit.classList.toggle('ouvert', !!pan);
   if (pan) $(pan).classList.remove('masque');
   if (m === 'texte') chargerLignes();
+  if (m === 'commentaires') chargerCommentaires(); else effacerReperes();
   if (m === 'signature') majConsigneSig();
 }
 document.querySelectorAll('#modes .btn').forEach(b => b.onclick = () => setMode(b.dataset.mode));
@@ -1695,10 +1737,163 @@ document.addEventListener('keydown', (e) => {
     case 't': case 'T': setMode('texte'); break;
     case 'a': case 'A': setMode('libre'); break;
     case 's': case 'S': setMode('signature'); break;
+    case 'c': case 'C': setMode('commentaires'); break;
     case 'F4': basculerLargeurPages(); break;
     case 'Escape': setMode('select'); break;
   }
 });
+
+// =====================================================================
+// Commentaires de relecture
+// =====================================================================
+// Ce qu'on reçoit d'une relecture GSE ou d'un bureau de contrôle : des notes,
+// des surlignages, des barrés, des cadres. On les LIT — on ne les modifie pas.
+let CM = [];               // tous les commentaires du document
+let cmVise = -1;           // celui qu'on est allé voir
+
+async function chargerCommentaires() {
+  if (!S.id) return;
+  const version = S.version;
+  try {
+    const r = await api(`/api/doc/${S.id}/commentaires`);
+    if (version !== S.version && S.mode !== 'commentaires') return;
+    CM = r.commentaires || [];
+    majPastilleCommentaires();
+    remplirRelecteurs();
+    dessinerListeCommentaires();
+    dessinerReperes();
+  } catch (err) { toast(err.message, true); }
+}
+
+// La pastille sur le bouton : c'est elle qui fait exister la fonction. Sans
+// elle, personne n'irait chercher un mode dont rien n'annonce le contenu.
+function majPastilleCommentaires() {
+  const p = $('#cm-pastille');
+  p.textContent = CM.length;
+  p.classList.toggle('masque', !CM.length);
+}
+
+function remplirRelecteurs() {
+  const sel = $('#cm-qui'), avant = sel.value;
+  const qui = [...new Set(CM.map((c) => c.auteur).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'fr'));
+  sel.replaceChildren();
+  const tous = document.createElement('option');
+  tous.value = ''; tous.textContent = qui.length > 1 ? `Tous les relecteurs (${qui.length})` : 'Tous les relecteurs';
+  sel.appendChild(tous);
+  qui.forEach((q) => { const o = document.createElement('option'); o.value = q; o.textContent = q; sel.appendChild(o); });
+  sel.value = qui.includes(avant) ? avant : '';
+  sel.onchange = () => { dessinerListeCommentaires(); dessinerReperes(); };
+}
+
+function cmRetenus() {
+  const q = $('#cm-qui').value;
+  return CM.map((c, k) => ({ c, k })).filter(({ c }) => !q || c.auteur === q);
+}
+
+function dessinerListeCommentaires() {
+  const cont = $('#cm-liste'), retenus = cmRetenus();
+  cont.replaceChildren();
+  const vide = $('#cm-vide');
+  if (!CM.length) {
+    vide.textContent = 'Aucun commentaire dans ce document.';
+    vide.classList.remove('masque');
+    return;
+  }
+  if (!retenus.length) { vide.textContent = 'Aucun commentaire de ce relecteur.'; vide.classList.remove('masque'); return; }
+  vide.classList.add('masque');
+  const frag = document.createDocumentFragment();
+  retenus.forEach(({ c, k }) => {
+    const d = document.createElement('div');
+    d.className = 'cm' + (c.repond_a != null ? ' reponse' : '') + (k === cmVise ? ' vise' : '');
+    d.dataset.k = k;
+    if (c.couleur) d.style.borderLeftColor = c.couleur;
+    const qui = document.createElement('div'); qui.className = 'qui';
+    const b = document.createElement('b'); b.textContent = c.auteur || 'Sans nom';
+    const dt = document.createElement('span'); dt.textContent = c.date || '';
+    qui.append(b, dt); d.appendChild(qui);
+    const ou = document.createElement('div'); ou.className = 'ou';
+    ou.textContent = `page ${c.page + 1} · ${c.genre}` + (c.sujet ? ` · ${c.sujet}` : '');
+    d.appendChild(ou);
+    if (c.texte) { const t = document.createElement('div'); t.className = 'porte'; t.textContent = c.texte; d.appendChild(t); }
+    if (c.contenu) { const t = document.createElement('div'); t.className = 'dit'; t.textContent = c.contenu; d.appendChild(t); }
+    d.onclick = () => allerCommentaire(k);
+    frag.appendChild(d);
+  });
+  cont.appendChild(frag);
+}
+
+// Les repères sont posés sur TOUTES les pages montées, pas seulement la
+// courante : la pile est continue, on voit souvent deux pages à la fois.
+function effacerReperes() {
+  el.pile.querySelectorAll('.repere').forEach((r) => r.remove());
+}
+function dessinerReperes() {
+  effacerReperes();
+  if (S.mode !== 'commentaires') return;
+  const parPage = new Map();
+  cmRetenus().forEach(({ c, k }) => {
+    if (!parPage.has(c.page)) parPage.set(c.page, []);
+    parPage.get(c.page).push({ c, k });
+  });
+  el.pile.querySelectorAll('.page').forEach((d) => {
+    const liste = parPage.get(+d.dataset.i);
+    if (!liste) return;
+    const calque = d.querySelector('.calque');
+    liste.forEach(({ c, k }) => {
+      const [x0, y0, x1, y1] = c.rect_aff;
+      const r = document.createElement('div');
+      r.className = 'repere' + (k === cmVise ? ' vise' : '');
+      Object.assign(r.style, {
+        left: x0 * S.zoom + 'px', top: y0 * S.zoom + 'px',
+        width: Math.max(6, (x1 - x0) * S.zoom) + 'px',
+        height: Math.max(6, (y1 - y0) * S.zoom) + 'px',
+      });
+      if (c.couleur) r.style.borderColor = c.couleur;
+      calque.appendChild(r);
+    });
+  });
+}
+
+function allerCommentaire(k) {
+  const c = CM[k];
+  if (!c) return;
+  cmVise = k;
+  allerPage(c.page, false);
+  dessinerReperes();
+  dessinerListeCommentaires();
+  const el2 = $(`#cm-liste .cm[data-k="${k}"]`);
+  if (el2) el2.scrollIntoView({ block: 'nearest' });
+}
+
+// Le relevé en clair : de quoi en faire une liste de tâches hors de l'outil.
+$('#cm-copier').onclick = async () => {
+  const retenus = cmRetenus();
+  if (!retenus.length) { toast('Rien à copier.'); return; }
+  const lignes = [`${S.nom} — ${retenus.length} commentaire${retenus.length > 1 ? 's' : ''}`, ''];
+  let pageEnCours = -1;
+  retenus.forEach(({ c }) => {
+    if (c.page !== pageEnCours) { pageEnCours = c.page; lignes.push(`--- Page ${c.page + 1} ---`); }
+    const tete = [c.auteur || 'Sans nom', c.date, c.genre].filter(Boolean).join(' · ');
+    lignes.push(tete);
+    if (c.texte) lignes.push(`  « ${c.texte} »`);
+    if (c.contenu) lignes.push(`  ${c.contenu.replace(/\n/g, '\n  ')}`);
+    lignes.push('');
+  });
+  const txt = lignes.join('\n');
+  try {
+    await navigator.clipboard.writeText(txt);
+    toast(`${retenus.length} commentaire${retenus.length > 1 ? 's' : ''} copié${retenus.length > 1 ? 's' : ''}.`);
+  } catch (err) {
+    // Le presse-papiers peut être refusé (page non sécurisée, permission) :
+    // on ne laisse pas l'utilisateur les mains vides.
+    const t = document.createElement('textarea');
+    t.value = txt; t.style.position = 'fixed'; t.style.opacity = '0';
+    document.body.appendChild(t); t.select();
+    const ok = document.execCommand('copy');
+    t.remove();
+    toast(ok ? 'Commentaires copiés.' : 'Copie refusée par le navigateur.', !ok);
+  }
+};
 
 // =====================================================================
 // Démarrage
