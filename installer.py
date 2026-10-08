@@ -463,6 +463,13 @@ def installer(diffuser: bool):
                 shutil.copy2(SOURCE_ZIP, arrivee)
                 echo("  Diffusion  : %s (%.1f Mo)"
                      % (arrivee, os.path.getsize(arrivee) / 1e6))
+                # La notice VOYAGE A COTE de l'archive, et non dedans : un
+                # collegue qui ouvre le dossier partage doit pouvoir la lire
+                # AVANT de decompresser quoi que ce soit.
+                notice = os.path.join(ICI, "NOTICE-BUREAU.md")
+                if os.path.isfile(notice):
+                    shutil.copy2(notice, os.path.join(dossier, "Editeur PDF BPO - a lire.md"))
+                    echo("  Notice     : Editeur PDF BPO - a lire.md")
         else:
             echo("  Diffusion  : dossier introuvable, ignoré (%s)" % dossier)
 
