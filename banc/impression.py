@@ -133,6 +133,34 @@ def banc_petit_tirage(b: Banc):
         v.fermer()
 
 
+def banc_impression_echouee(b: Banc):
+    """Le cas du 27/10 : le spouleur abandonne (evenement 372) et laisse un
+    fichier tronque sur le chemin du port. Il doit etre mis de cote, pour que
+    le tirage suivant puisse passer — et le journal doit le dire."""
+    garde = veilleur.ABANDON
+    veilleur.ABANDON = 4                     # on ne va pas attendre dix minutes
+    v = Veille()
+    try:
+        _ajouter(v.attendu, b"%PDF-1.7\n" + TRANCHE)      # 1 Mio pile, sans fin
+        time.sleep(3)
+        b.dire("avant le delai, rien n'est touche", v.tirages(), [])
+        time.sleep(4)
+        apres = v.tirages()
+        b.dire("apres le delai, le fichier tronque est mis de cote",
+               len(apres), 1)
+        b.dire("...sous un nom qui dit ce qu'il est",
+               bool(apres) and apres[0].startswith("TRONQUE "), True)
+        b.dire("...et il n'a PAS ete presente comme un tirage", v.ouverts, [])
+        b.dire("le chemin du port est libere", os.path.exists(v.attendu), False)
+        # et le tirage SUIVANT doit passer normalement
+        _ajouter(v.attendu, b"%PDF-1.4\n" + b"z" * 30000 + FIN_PDF)
+        time.sleep(5)
+        b.dire("le tirage suivant est ramasse", len(v.ouverts), 1)
+    finally:
+        veilleur.ABANDON = garde
+        v.fermer()
+
+
 SABOTAGE = ("on revient au critere d'origine : la taille seule",
             lambda: setattr(veilleur, "pdf_complet", lambda chemin: True),
             ["pendant la pause de 5 s, rien n'est ramassé",
@@ -143,6 +171,7 @@ def main():
     b = Banc("VEILLEUR D'IMPRESSION")
     banc_gros_tirage(b)
     banc_petit_tirage(b)
+    banc_impression_echouee(b)
     ok = b.bilan()
 
     muet = 0

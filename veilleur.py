@@ -37,10 +37,19 @@ def _editeur() -> str:
 EDITEUR = _editeur()
 PAUSE = 1.0          # secondes entre deux regards
 STABLE = 2           # nombre de regards consécutifs à taille identique
+# Au-delà de ce délai sans que le fichier change NI porte sa marque de fin, on
+# tient l'impression pour ÉCHOUÉE : le spouleur l'a abandonnée (événement 372,
+# vu le 27/10 avec un tirage de 14 Mo), et le fichier tronqué, laissé sur le
+# chemin du port, bloquerait tous les tirages suivants.
+ABANDON = 600        # secondes
 
 
 def dire(msg: str):
-    if "--console" in sys.argv or "--une-fois" in sys.argv:
+    # Empaqueté, le veilleur parle TOUJOURS : app.py a fait de stdout le journal
+    # (%LOCALAPPDATA%\Editeur PDF BPO\journal.txt). Ne parler qu'avec --console
+    # a rendu ce journal muet pendant un mois — le 27/10, un tirage de 14 Mo a
+    # échoué et il n'y avait pas une ligne pour le dire.
+    if getattr(sys, "frozen", False) or "--console" in sys.argv or "--une-fois" in sys.argv:
         print(time.strftime("%H:%M:%S"), msg, flush=True)
 
 
@@ -105,6 +114,22 @@ def traiter(chemin: str) -> bool:
     return True
 
 
+def mettre_de_cote(chemin: str, taille: int) -> bool:
+    """Une impression que le spouleur a abandonnée : on la range sous un nom qui
+    dit ce qu'elle est, on le dit au journal, et on libère le chemin du port."""
+    cible = os.path.join(DOSSIER, time.strftime("TRONQUE %Y-%m-%d %Hh%M-%S.pdf"))
+    try:
+        os.replace(chemin, cible)
+    except OSError as e:
+        dire("impression abandonnée, mais impossible à mettre de côté (%s)" % e)
+        return False
+    dire("IMPRESSION ÉCHOUÉE : %.1f Mo sans marque de fin, rien ne bouge depuis "
+         "%d s. Mise de côté sous %s. Windows a sans doute journalisé un "
+         "événement 372 (Observateur d'événements > PrintService)."
+         % (taille / 1e6, ABANDON, os.path.basename(cible)))
+    return True
+
+
 def ouvrir(cible: str):
     """Montre le tirage. Fonction à part pour que le banc puisse la remplacer :
     éprouver la veille ne doit pas ouvrir de fenêtres."""
@@ -133,6 +158,8 @@ def boucle():
     fin = time.time() + 12
     attente_depuis = None        # depuis quand un tirage est-il en cours ?
     dernier_mot = 0.0            # dernière fois qu'on l'a dit au journal
+    taille_vue = -1              # dernière taille lue…
+    change_depuis = 0.0          # …et depuis quand elle n'a pas bougé
     while True:
         try:
             if os.path.isfile(ATTENDU):
@@ -156,6 +183,8 @@ def boucle():
                     # gros tirage prend du temps, et un silence total ne permet
                     # pas de distinguer « ça travaille » de « c'est bloqué ».
                     maintenant = time.time()
+                    if t != taille_vue:
+                        taille_vue, change_depuis = t, maintenant
                     if attente_depuis is None:
                         attente_depuis = maintenant
                         dernier_mot = 0.0
@@ -165,6 +194,16 @@ def boucle():
                         dire("toujours en cours depuis %.0f s, %.1f Mo%s"
                              % (maintenant - attente_depuis, t / 1e6,
                                 "" if pdf_complet(ATTENDU) else " (pas encore de %%EOF)"))
+                    # Plus rien ne bouge depuis longtemps, pas de marque de fin,
+                    # et plus personne ne tient le fichier : l'impression a
+                    # ÉCHOUÉ. On met le fichier de côté — sans quoi il reste sur
+                    # le chemin du port et bloque tous les tirages suivants.
+                    if (maintenant - change_depuis > ABANDON and libre(ATTENDU)
+                            and not pdf_complet(ATTENDU)):
+                        if mettre_de_cote(ATTENDU, t):
+                            tailles = []
+                            attente_depuis = None
+                            taille_vue = -1
             else:
                 tailles = []
                 attente_depuis = None
