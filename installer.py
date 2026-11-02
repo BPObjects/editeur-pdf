@@ -103,7 +103,14 @@ def dossier_diffusion(explicite=None):
 
 
 def echo(msg=""):
-    print(msg)
+    # Une console en cp1252, ou une sortie redirigée, ne sait pas écrire « → » :
+    # sans ce garde, `--etat` mourait en route et une installation lancée par un
+    # autre programme pouvait s'interrompre APRÈS avoir arrêté le veilleur.
+    try:
+        print(msg)
+    except UnicodeEncodeError:
+        enc = getattr(sys.stdout, "encoding", None) or "ascii"
+        print(msg.encode(enc, "replace").decode(enc, "replace"))
 
 
 def stop(msg: str):
