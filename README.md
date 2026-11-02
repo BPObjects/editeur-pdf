@@ -76,6 +76,17 @@ et l'installer en administrateur. Ce détour ne demande ni l'un ni l'autre :
 l'imprimante s'appuie sur le pilote **Microsoft Print To PDF** déjà présent dans
 Windows. `installer.py --sans-imprimante` l'omet, `--desinstaller` la retire.
 
+**Image « tronquée » à l'impression depuis Archicad.** Une image sans
+résolution déclarée (les JPEG de Gemini, les PNG de Copilot…) sort rognée au
+coin haut-gauche, réduite de l'échelle d'affichage Windows (÷ 1,5 à 150 %) :
+Archicad passe au pilote un rectangle source en pixels divisés par cette
+échelle, et les pixels perdus ne sont dans aucun PDF. Ni l'éditeur ni le pilote
+Microsoft n'y sont pour rien (constat du 02/11/2026, témoin GDI à l'appui).
+Remède : glisser les images sur `outils/Image 72 dpi (glisser ici).bat` AVANT
+de les poser dans Archicad — `outils/image-72dpi.py` inscrit 72 dpi dans
+l'en-tête (JFIF, EXIF ou pHYs) sans toucher aux pixels ; une image qui déclare
+déjà 96 dpi ou moins est laissée telle quelle.
+
 ## Éprouver les changements
 
 ```
