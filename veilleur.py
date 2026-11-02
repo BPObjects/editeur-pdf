@@ -13,6 +13,12 @@ daté, et l'ouvre dans l'éditeur.
 
 Un vrai pilote d'imprimante virtuelle ferait cela seul, mais il faut le signer
 et l'installer en administrateur. Ce détour ne demande aucun de ces deux droits.
+
+SECONDE TÂCHE, depuis le 02/11/2026 : il donne 72 dpi aux images SANS
+résolution qui arrivent dans le dossier Téléchargements (Gemini, Copilot…).
+Archicad imprime ces images rognées au coin haut-gauche sur un écran à 150 % ;
+voir image_dpi.py. Il ne touche jamais une résolution déclarée, ni une image
+déjà là quand il démarre, ni un fichier qui n'a pas encore sa marque de fin.
 """
 from __future__ import annotations
 
@@ -21,6 +27,8 @@ import os
 import subprocess
 import sys
 import time
+
+import image_dpi
 
 DOSSIER = os.path.join(os.path.expanduser("~"), "Documents", "Impressions BPO")
 ATTENDU = os.path.join(DOSSIER, "impression.pdf")
@@ -42,6 +50,110 @@ STABLE = 2           # nombre de regards consécutifs à taille identique
 # vu le 27/10 avec un tirage de 14 Mo), et le fichier tronqué, laissé sur le
 # chemin du port, bloquerait tous les tirages suivants.
 ABANDON = 600        # secondes
+
+
+# ------------------------------------------------- images sans résolution
+def _telechargements() -> str:
+    """Le VRAI dossier Téléchargements : il peut avoir été déplacé (autre
+    disque, OneDrive), et ~/Downloads ne serait alors plus le bon."""
+    if os.name == "nt":
+        try:
+            import ctypes
+            from ctypes import wintypes
+
+            class GUID(ctypes.Structure):
+                _fields_ = [("a", wintypes.DWORD), ("b", wintypes.WORD),
+                            ("c", wintypes.WORD), ("d", ctypes.c_ubyte * 8)]
+            # FOLDERID_Downloads {374DE290-123F-4565-9164-39C4925E467B}
+            g = GUID(0x374DE290, 0x123F, 0x4565,
+                     (ctypes.c_ubyte * 8)(0x91, 0x64, 0x39, 0xC4, 0x92, 0x5E, 0x46, 0x7B))
+            p = ctypes.c_wchar_p()
+            f = ctypes.windll.shell32.SHGetKnownFolderPath
+            f.argtypes = [ctypes.POINTER(GUID), wintypes.DWORD, wintypes.HANDLE,
+                          ctypes.POINTER(ctypes.c_wchar_p)]
+            if f(ctypes.byref(g), 0, None, ctypes.byref(p)) == 0 and p.value:
+                chemin = p.value
+                ctypes.windll.ole32.CoTaskMemFree(p)
+                return chemin
+        except Exception:
+            pass
+    return os.path.join(os.path.expanduser("~"), "Downloads")
+
+
+DOSSIERS_IMAGES = [_telechargements()]
+EXT_IMAGES = (".jpg", ".jpeg", ".png")
+REGARD_IMAGES = 2.0      # secondes entre deux regards sur ces dossiers
+DEJA_LA = 600            # au démarrage, une image plus vieille que cela est laissée
+
+
+class VeilleImages:
+    """Tamponne à 72 dpi les images sans résolution qui ARRIVENT dans un dossier.
+
+    Trois prudences, chacune payée ailleurs :
+      · une image n'est touchée qu'ENTIÈRE (marque de fin JPEG/PNG) et stable
+        sur deux regards — la taille seule ne prouve rien (cf. pdf_complet) ;
+      · au démarrage, ce qui est déjà là depuis plus de DEJA_LA est laissé :
+        on ne réécrit pas l'historique d'un dossier sans qu'on l'ait demandé ;
+      · une résolution DÉCLARÉE n'est jamais réécrite (mode prudent).
+    """
+
+    def __init__(self, dossiers):
+        self.dossiers = [d for d in dossiers if d]
+        self.vus = {}            # chemin -> signature (taille, date) déjà jugée
+        self.candidats = {}      # chemin -> signature vue au regard précédent
+        self.premier = True
+        self.depart = time.time()
+
+    def regarder(self):
+        for d in self.dossiers:
+            try:
+                entrees = list(os.scandir(d))
+            except OSError:
+                continue
+            for e in entrees:
+                if not e.name.lower().endswith(EXT_IMAGES):
+                    continue
+                try:
+                    if not e.is_file():
+                        continue
+                    st = e.stat()
+                except OSError:
+                    continue
+                sig = (st.st_size, st.st_mtime_ns)
+                p = e.path
+                if self.vus.get(p) == sig:
+                    continue
+                if self.premier and st.st_mtime < self.depart - DEJA_LA:
+                    self.vus[p] = sig
+                    continue
+                if self.candidats.get(p) != sig or not libre(p):
+                    self.candidats[p] = sig          # on attend un regard de plus
+                    continue
+                self._tamponner(p, sig)
+        self.premier = False
+
+    def _tamponner(self, p, sig):
+        try:
+            modifie, msg = image_dpi.traiter(p, seulement_sans=True)
+        except ValueError as e:
+            # Pas de marque de fin : soit le fichier s'écrit encore (sa
+            # signature changera et on y reviendra), soit il est ainsi fait.
+            # Dans les deux cas, on ne le redit pas à chaque regard.
+            self.vus[p] = sig
+            self.candidats.pop(p, None)
+            dire("image %s laissée : %s" % (os.path.basename(p), e))
+            return
+        except OSError as e:
+            dire("image %s : %s, on réessaiera" % (os.path.basename(p), e))
+            return
+        try:
+            st = os.stat(p)
+            self.vus[p] = (st.st_size, st.st_mtime_ns)
+        except OSError:
+            self.vus[p] = sig
+        self.candidats.pop(p, None)
+        if modifie:
+            dire("image %s : %s" % (os.path.basename(p), msg))
 
 
 def dire(msg: str):
@@ -160,7 +272,21 @@ def boucle():
     dernier_mot = 0.0            # dernière fois qu'on l'a dit au journal
     taille_vue = -1              # dernière taille lue…
     change_depuis = 0.0          # …et depuis quand elle n'a pas bougé
+    # Les images : pas en mode « une fois », qui ne sert qu'à ramasser un tirage.
+    images = None
+    if not une_fois and DOSSIERS_IMAGES:
+        images = VeilleImages(DOSSIERS_IMAGES)
+        dire("images sans résolution : veille sur %s" % ", ".join(images.dossiers))
+    regard_images = 0.0
     while True:
+        # À part, et avant l'impression : une erreur ici ne doit jamais
+        # empêcher de ramasser un tirage.
+        if images is not None and time.time() - regard_images >= REGARD_IMAGES:
+            regard_images = time.time()
+            try:
+                images.regarder()
+            except Exception as e:
+                dire("incident (images) : %s" % e)
         try:
             if os.path.isfile(ATTENDU):
                 t = os.path.getsize(ATTENDU)

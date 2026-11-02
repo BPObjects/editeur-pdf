@@ -82,10 +82,13 @@ coin haut-gauche, réduite de l'échelle d'affichage Windows (÷ 1,5 à 150 %) :
 Archicad passe au pilote un rectangle source en pixels divisés par cette
 échelle, et les pixels perdus ne sont dans aucun PDF. Ni l'éditeur ni le pilote
 Microsoft n'y sont pour rien (constat du 02/11/2026, témoin GDI à l'appui).
-Remède : glisser les images sur `outils/Image 72 dpi (glisser ici).bat` AVANT
-de les poser dans Archicad — `outils/image-72dpi.py` inscrit 72 dpi dans
-l'en-tête (JFIF, EXIF ou pHYs) sans toucher aux pixels ; une image qui déclare
-déjà 96 dpi ou moins est laissée telle quelle.
+**C'est désormais automatique** : le veilleur donne 72 dpi à toute image
+SANS résolution qui arrive dans le dossier Téléchargements (`image_dpi.py`).
+Il ne touche ni une résolution déclarée, ni une image déjà là quand il démarre,
+ni un fichier qui n'a pas encore sa marque de fin ; il garde la date et la
+marque « téléchargé d'Internet ». Pour une image rangée ailleurs, la glisser
+sur `outils/Image 72 dpi (glisser ici).bat` (ce geste volontaire ramène aussi
+à 72 une résolution supérieure à 96).
 
 ## Éprouver les changements
 
@@ -93,6 +96,8 @@ déjà 96 dpi ou moins est laissée telle quelle.
 python banc/faire-pdf-commente.py      fabrique le PDF témoin
 python banc/commentaires.py            joue le banc
 python banc/commentaires.py --sabotages  …puis casse le code exprès
+python banc/impression.py --sabotages   veilleur : un gros tirage n'est pas tronqué
+python banc/images.py --sabotages       veilleur : 72 dpi aux images sans résolution
 ```
 
 Les bancs pilotent un **vrai Chrome** par CDP (`banc/cdp.py`, WebSocket écrit à
@@ -178,7 +183,9 @@ font la même chose hors champ de saisie.
 - `index.html` — interface, un seul fichier, sans dépendance.
 - `make_icon.py`, `build.py` — icône et construction de l'exécutable.
 - `installer.py` — installation pour l'utilisateur courant, raccourcis, registre, imprimante.
-- `veilleur.py` — ramasse ce que l'imprimante « PDF BPO » dépose et l'ouvre.
+- `veilleur.py` — ramasse ce que l'imprimante « PDF BPO » dépose et l'ouvre ;
+  tamponne à 72 dpi les images sans résolution des Téléchargements.
+- `image_dpi.py` — inscrit 72 dpi dans l'en-tête JPEG/PNG, pixels intacts.
 - `requirements.txt` / `requirements-app.txt` / `requirements-build.txt` —
   moteur seul / application bureau / outils de construction.
 - `LICENSE`, `THIRD-PARTY.md` — licence et composants tiers.

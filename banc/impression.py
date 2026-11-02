@@ -48,10 +48,14 @@ class Veille:
         self.dossier = tempfile.mkdtemp(prefix="banc-impression-")
         self.attendu = os.path.join(self.dossier, "impression.pdf")
         self.ouverts = []
-        self._gardes = (veilleur.DOSSIER, veilleur.ATTENDU, veilleur.ouvrir)
+        self._gardes = (veilleur.DOSSIER, veilleur.ATTENDU, veilleur.ouvrir,
+                        veilleur.DOSSIERS_IMAGES)
         veilleur.DOSSIER = self.dossier
         veilleur.ATTENDU = self.attendu
         veilleur.ouvrir = self.ouverts.append          # on note, on n'ouvre pas
+        # La boucle veille aussi les Téléchargements : PAS les vrais pendant un
+        # banc d'impression (banc/images.py éprouve cette partie à part).
+        veilleur.DOSSIERS_IMAGES = []
         self.fil = threading.Thread(target=veilleur.boucle, daemon=True)
         self.fil.start()
         time.sleep(0.5)
@@ -60,7 +64,8 @@ class Veille:
         return sorted(f for f in os.listdir(self.dossier) if f != "impression.pdf")
 
     def fermer(self):
-        veilleur.DOSSIER, veilleur.ATTENDU, veilleur.ouvrir = self._gardes
+        (veilleur.DOSSIER, veilleur.ATTENDU, veilleur.ouvrir,
+         veilleur.DOSSIERS_IMAGES) = self._gardes
         shutil.rmtree(self.dossier, ignore_errors=True)
 
 

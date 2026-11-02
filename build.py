@@ -14,7 +14,7 @@ import subprocess
 import sys
 
 ICI = os.path.dirname(os.path.abspath(__file__))
-DONNEES = ("index.html", "serveur.py", "app.py", "veilleur.py", "make_icon.py", "build.py",
+DONNEES = ("index.html", "serveur.py", "app.py", "veilleur.py", "image_dpi.py", "make_icon.py", "build.py",
            "build-macos.py", "installer.py",
            "README.md", "LICENSE", "THIRD-PARTY.md", "requirements.txt", "requirements-app.txt",
            "requirements-build.txt", "Editeur PDF.bat", "Editeur PDF (navigateur).bat")
@@ -69,7 +69,7 @@ def main():
             "--name", NOM, "--icon", "icon.ico",
             "--version-file", ecrire_version(),
             "--collect-all", "webview", "--collect-all", "pymupdf",
-            "--hidden-import", "veilleur"]
+            "--hidden-import", "veilleur", "--hidden-import", "image_dpi"]
     for f in DONNEES:
         args += ["--add-data", f"{f}{os.pathsep}."]
     args.append("app.py")
